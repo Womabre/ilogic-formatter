@@ -1,5 +1,6 @@
 out/
 *.vsix
+*.code-workspace
 
 node_modules/
 .node_modules/

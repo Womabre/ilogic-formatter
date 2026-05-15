@@ -36,7 +36,7 @@ Example `settings.json`:
 {
   "editor.formatOnSave": true,
   "[ilogicvb]": {
-    "editor.defaultFormatter": "cadac.ilogic-formatter"
+    "editor.defaultFormatter": "wmbreedveld.ilogic-formatter"
   },
   "ilogicFormatter.indentSize": 4,
   "ilogicFormatter.normalizeKeywords": true

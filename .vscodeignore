@@ -2,4 +2,7 @@ src/
 tsconfig.json
 node_modules/
 .vscodeignore
+.gitignore
 **/*.map
+*.vsix
+.DS_Store

@@ -24,8 +24,6 @@
     "formatter"
   ],
   "activationEvents": [
-    "onLanguage:ilogicvb",
-    "onLanguage:vb",
     "workspaceContains:**/*.iLogicVb",
     "workspaceContains:**/*.vb"
   ],
@@ -114,7 +112,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "npm run compile && vsce package --out ../ilogic-formatter.vsix"
+    "package": "npm run compile && vsce package --out ilogic-formatter.vsix"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

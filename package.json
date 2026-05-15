@@ -3,7 +3,7 @@
   "displayName": "iLogic Formatter",
   "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
   "version": "1.0.0",
-  "publisher": "Wouter Breedveld",
+  "publisher": "Womabre",
   "icon": "icon.png",
   "repository": {
     "type": "git",

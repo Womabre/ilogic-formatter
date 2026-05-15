@@ -1,0 +1,125 @@
+{
+  "name": "ilogic-formatter",
+  "displayName": "iLogic Formatter",
+  "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
+  "version": "1.0.0",
+  "publisher": "cadac",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Womabre/iLogic-Formatter"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Formatters",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "iLogic",
+    "Inventor",
+    "Autodesk",
+    "VB.NET",
+    "formatter"
+  ],
+  "activationEvents": [
+    "onLanguage:ilogicvb",
+    "onLanguage:vb",
+    "workspaceContains:**/*.iLogicVb",
+    "workspaceContains:**/*.vb"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ilogicvb",
+        "aliases": [
+          "iLogic VB",
+          "iLogicVb"
+        ],
+        "extensions": [
+          ".iLogicVb"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "vb",
+        "aliases": [
+          "Visual Basic",
+          "VB.NET"
+        ],
+        "extensions": [
+          ".vb"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ilogicvb",
+        "scopeName": "source.ilogicvb",
+        "path": "./syntaxes/ilogicvb.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "ilogicFormatter.formatDocument",
+        "title": "Format iLogic Rule",
+        "category": "iLogic"
+      }
+    ],
+    "configuration": {
+      "title": "iLogic Formatter",
+      "properties": {
+        "ilogicFormatter.indentSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Number of spaces per indentation level."
+        },
+        "ilogicFormatter.useTabs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use tabs instead of spaces for indentation."
+        },
+        "ilogicFormatter.maxBlankLines": {
+          "type": "number",
+          "default": 1,
+          "description": "Maximum number of consecutive blank lines to allow."
+        },
+        "ilogicFormatter.blankLineAfterBlock": {
+          "type": "boolean",
+          "default": true,
+          "description": "Insert a blank line after End Sub / End Function / End Property."
+        },
+        "ilogicFormatter.normalizeKeywords": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize VB.NET keyword casing (e.g. dim → Dim, if → If)."
+        },
+        "ilogicFormatter.normalizeComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ensure a space after the comment apostrophe (e.g. 'comment → ' comment)."
+        },
+        "ilogicFormatter.normalizeUnicode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Replace lookalike Unicode characters with their ASCII equivalents (e.g. en dash → hyphen, curly quotes → straight quotes)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npm run compile && vsce package --out ../ilogic-formatter.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  }
+}

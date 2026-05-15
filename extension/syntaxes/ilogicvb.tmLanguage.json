@@ -1,0 +1,76 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "iLogic VB",
+  "scopeName": "source.ilogicvb",
+  "fileTypes": ["iLogicVb"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.apostrophe.ilogicvb",
+          "match": "'.*$"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.ilogicvb",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.ilogicvb",
+          "match": "\"\""
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ilogicvb",
+          "match": "(?i)\\b(If|Then|Else|ElseIf|End If|For|Each|In|To|Step|Next|While|End While|Do|Loop|Until|Select|Case|End Select|Exit|Continue|Return|GoTo|Try|Catch|Finally|End Try|Throw)\\b"
+        },
+        {
+          "name": "keyword.declaration.ilogicvb",
+          "match": "(?i)\\b(Sub|End Sub|Function|End Function|Property|End Property|Get|Set|Class|End Class|Module|End Module|Structure|End Structure|Enum|End Enum|Interface|End Interface|Namespace|End Namespace)\\b"
+        },
+        {
+          "name": "keyword.modifier.ilogicvb",
+          "match": "(?i)\\b(Dim|As|New|Const|Static|ReadOnly|Public|Private|Protected|Friend|Shared|Overrides|Overridable|MustOverride|NotOverridable|ByVal|ByRef|Optional|Imports|With|End With|Using|End Using|Handles|Inherits|Implements|Shadows|Partial|WithEvents)\\b"
+        },
+        {
+          "name": "keyword.operator.ilogicvb",
+          "match": "(?i)\\b(And|AndAlso|Or|OrElse|Not|Xor|Is|IsNot|Like|Mod|TypeOf|GetType|DirectCast|TryCast|CType|AddHandler|RemoveHandler|RaiseEvent)\\b"
+        }
+      ]
+    },
+    "types": {
+      "name": "storage.type.ilogicvb",
+      "match": "(?i)\\b(Boolean|Byte|SByte|Short|UShort|Integer|UInteger|Long|ULong|Single|Double|Decimal|String|Char|Date|Object)\\b"
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.ilogicvb",
+          "match": "(?i)\\b(True|False|Nothing)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.ilogicvb",
+      "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b"
+    },
+    "operators": {
+      "name": "keyword.operator.ilogicvb",
+      "match": "\\+|-|\\*|\\/|\\\\|\\^|&|=|<>|<=|>=|<|>|\\."
+    }
+  }
+}

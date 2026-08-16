@@ -78,6 +78,32 @@ test("rejects a fragment missing its code fence", () => {
     assert.throws(() => parseFragments(doc), /body/i);
 });
 
+test("rejects a fragment whose body fence sits after the next heading", () => {
+    // The guard has to cover every heading level, not just the ones the
+    // library happens to use — otherwise a fragment silently adopts a later
+    // section's code fence as its body.
+    for (const heading of ["# Top", "## Category", "### Family", "#### Fragment", "##### Deeper"]) {
+        const doc = `## Excel\n\n### Family\n\n#### No body\n\`nobody\` — nothing follows.\n\n${heading}\n\n\`\`\`vb\nx = 1\n\`\`\`\n`;
+        assert.throws(() => parseFragments(doc), /body/i, `not guarded against: ${heading}`);
+    }
+});
+
+test("rejects an unterminated long fence rather than dropping the rest of the file", () => {
+    const doc = "## Excel\n\n### Family\n\n#### One\n`one` — d.\n\n```vb\nx = 1\n```\n\n````markdown\nnever closed\n";
+    assert.throws(() => parseFragments(doc), /unterminated/i);
+});
+
+test("rejects duplicate fragment names", () => {
+    // Snippets are keyed by name, so a repeat would silently overwrite.
+    const doc = DOC + "\n#### Find a row by column value\n`other-prefix` — clash.\n\n```vb\nx = 1\n```\n";
+    assert.throws(() => parseFragments(doc), /duplicate/i);
+});
+
+test("rejects nested placeholders, which the member scanner cannot read", () => {
+    const doc = "## C\n\n### F\n\n#### Nested\n`nested` — d.\n\n```vb\n${1:${2:GoExcel}}.Open()\n```\n";
+    assert.throws(() => parseFragments(doc), /nested/i);
+});
+
 test("rejects duplicate prefixes", () => {
     const doc = DOC + "\n#### Another\n`goexcel-findrow` — clash.\n\n```vb\nx = 1\n```\n";
     assert.throws(() => parseFragments(doc), /duplicate/i);
@@ -135,4 +161,11 @@ test("does not collect members from inside string literals", () => {
     const doc = '## C\n\n### F\n\n#### Str\n`str` — d.\n\n```vb\nMessageBox.Show("GoExcel.NotAMember")\n```\n';
     const table = toMemberTable(parseFragments(doc));
     assert.equal(table["GoExcel"], undefined);
+});
+
+test("does not collect members from inside comments", () => {
+    const doc = "## C\n\n### F\n\n#### Cmt\n`cmt` — d.\n\n```vb\nParameter.Quiet = True ' unlike GoExcel.NotAMember\n```\n";
+    const table = toMemberTable(parseFragments(doc));
+    assert.equal(table["GoExcel"], undefined);
+    assert.deepEqual(table["Parameter"], [{ name: "Quiet", kind: "property" }]);
 });

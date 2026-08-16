@@ -232,7 +232,7 @@ $0
 
 ```vb
 For Each ${1:item} In ${2:collection}
-	${3:MessageBox.Show(${1:item})}
+	MessageBox.Show(${1:item})
 Next
 $0
 ```

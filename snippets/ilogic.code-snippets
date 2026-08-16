@@ -136,7 +136,7 @@
     "prefix": "foreach",
     "body": [
       "For Each ${1:item} In ${2:collection}",
-      "\t${3:MessageBox.Show(${1:item})}",
+      "\tMessageBox.Show(${1:item})",
       "Next",
       "$0"
     ],

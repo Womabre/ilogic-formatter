@@ -1,0 +1,16 @@
+Sub Main
+    Dim kind As String = "a"
+    Select Case kind
+        Case "a"
+            MessageBox.Show("first")
+        Case "b", "c"
+            Select Case kind
+                Case "b"
+                    MessageBox.Show("nested b")
+                Case Else
+                    MessageBox.Show("nested other")
+            End Select
+        Case Else
+            MessageBox.Show("other")
+    End Select
+End Sub

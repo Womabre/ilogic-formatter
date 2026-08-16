@@ -1,6 +1,7 @@
 out/
 *.vsix
 *.code-workspace
+.scratch/
 
 node_modules/
 .node_modules/

@@ -6,14 +6,16 @@
  */
 
 export interface Fragment {
-    /** Level-3 heading — becomes the snippet's key and its label in the picker. */
+    /** Level-4 heading — becomes the snippet's key and its label in the picker. */
     name: string;
     /** What the user types to expand the snippet. */
     prefix: string;
     /** One-line explanation shown beside the snippet. */
     description: string;
-    /** Level-2 heading the fragment sits under. */
+    /** Level-2 heading: the API area the fragment belongs to. */
     category: string;
+    /** Level-3 heading: the family of related fragments within the category. */
+    family: string;
     /** Snippet body, in VS Code snippet syntax. */
     body: string;
 }
@@ -49,6 +51,8 @@ export const API_ROOTS = [
 
 const HEADING_2 = /^##\s+(.+?)\s*$/;
 const HEADING_3 = /^###\s+(.+?)\s*$/;
+const HEADING_4 = /^####\s+(.+?)\s*$/;
+const ANY_HEADING = /^#{2,4}\s+/;
 // `prefix` — description. Em dash or hyphen, description optional.
 const PREFIX_LINE = /^`([^`]+)`(?:\s*[—-]\s*(.*))?$/;
 const VB_FENCE_OPEN = /^```\s*vb\s*$/;
@@ -82,17 +86,25 @@ export function parseFragments(markdown: string): Fragment[] {
     const fragments: Fragment[] = [];
     const seen = new Map<string, string>();
     let category = "";
+    let family = "";
 
     for (let i = 0; i < lines.length; i++) {
         const h2 = lines[i].match(HEADING_2);
         if (h2) {
             category = h2[1];
+            family = "";
             continue;
         }
 
         const h3 = lines[i].match(HEADING_3);
-        if (!h3) continue;
-        const name = h3[1];
+        if (h3) {
+            family = h3[1];
+            continue;
+        }
+
+        const h4 = lines[i].match(HEADING_4);
+        if (!h4) continue;
+        const name = h4[1];
 
         // Prefix line: the next non-blank line, and it must stay within this
         // fragment — a heading means the prefix line is missing entirely.
@@ -114,7 +126,7 @@ export function parseFragments(markdown: string): Fragment[] {
         // Body: the next vb fence, which must come before the next heading.
         let k = j + 1;
         while (k < lines.length && !VB_FENCE_OPEN.test(lines[k])) {
-            if (HEADING_2.test(lines[k]) || HEADING_3.test(lines[k])) break;
+            if (ANY_HEADING.test(lines[k])) break;
             k++;
         }
         if (k >= lines.length || !VB_FENCE_OPEN.test(lines[k])) {
@@ -135,7 +147,7 @@ export function parseFragments(markdown: string): Fragment[] {
             throw new Error(`Fragment "${name}" has an unterminated body fence.`);
         }
 
-        fragments.push({ name, prefix, description, category, body: bodyLines.join("\n") });
+        fragments.push({ name, prefix, description, category, family, body: bodyLines.join("\n") });
     }
 
     return fragments;

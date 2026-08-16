@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { format, FormatOptions } from "./formatter";
+import { registerCompletions } from "./completions";
 
 export function activate(context: vscode.ExtensionContext) {
     const selector = [
@@ -47,6 +48,8 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     context.subscriptions.push(provider, rangeProvider);
+
+    registerCompletions(context);
 
     // Register a manual format command
     const command = vscode.commands.registerCommand("ilogicFormatter.formatDocument", () => {

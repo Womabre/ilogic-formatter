@@ -1,8 +1,17 @@
 src/
+test/
+scripts/
+data/
+out-test/
+docs/
 tsconfig.json
+tsconfig.test.json
 node_modules/
 .vscodeignore
 .gitignore
+.github/
+AGENTS.md
+CONTEXT.md
 **/*.map
 *.vsix
 .DS_Store

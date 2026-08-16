@@ -1,0 +1,39 @@
+public sub Main
+dim total as double = 0
+if total > 0 then
+total = total + 1
+elseif total = 0 then
+total = 1
+else
+total = -1
+end if
+for i = 1 to 10
+total = total + i
+next i
+for each part in parts
+total = total + 1
+next
+while total > 0
+total = total - 1
+end while
+do
+total = total + 1
+loop until total > 5
+try
+total = total / 0
+catch ex as Exception
+total = 0
+finally
+total = 1
+end try
+with someObject
+.Name = "x"
+end with
+using r as new StreamReader("f.txt")
+total = 1
+end using
+end sub
+
+private function Area(byval w as double, byval h as double) as double
+return w * h
+end function

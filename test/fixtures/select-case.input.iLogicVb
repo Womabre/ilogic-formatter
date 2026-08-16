@@ -1,0 +1,16 @@
+sub Main
+dim kind as string = "a"
+select case kind
+case "a"
+MessageBox.Show("first")
+case "b", "c"
+select case kind
+case "b"
+MessageBox.Show("nested b")
+case else
+MessageBox.Show("nested other")
+end select
+case else
+MessageBox.Show("other")
+end select
+end sub

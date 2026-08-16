@@ -2,6 +2,10 @@ out/
 *.vsix
 *.code-workspace
 
+# Private fragment library — local working notes, not part of the extension.
+# The curated, reviewed subset lives in data/ilogic-fragments.md.
+02_iLogic_Knowledge_ALL_OKF.md
+
 node_modules/
 .node_modules/
 built/*

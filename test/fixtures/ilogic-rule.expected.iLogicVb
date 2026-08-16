@@ -1,0 +1,13 @@
+' rule: update part width from Excel
+GoExcel.TitleRow = 1
+GoExcel.FindRowStart = 2
+i = GoExcel.FindRow("sizes.xls", "Sheet1", "Width", "<=", 0.2)
+If i > 0 Then
+    Parameter("Width") = GoExcel.CurrentRowValue("Width")
+Else
+    MessageBox.Show("No matching row found. Do you want to continue?", "iLogic")
+End If
+
+Dim doc = ThisDoc.Document
+iProperties.Value("Project", "Description") = "Width: " & Parameter("Width")
+InventorVb.DocumentUpdate()

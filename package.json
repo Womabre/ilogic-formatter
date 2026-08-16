@@ -21,7 +21,9 @@
     "Inventor",
     "Autodesk",
     "VB.NET",
-    "formatter"
+    "formatter",
+    "snippets",
+    "intellisense"
   ],
   "activationEvents": [
     "workspaceContains:**/*.iLogicVb",
@@ -58,6 +60,12 @@
         "language": "ilogicvb",
         "scopeName": "source.ilogicvb",
         "path": "./syntaxes/ilogicvb.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "ilogicvb",
+        "path": "./snippets/ilogic.code-snippets"
       }
     ],
     "commands": [
@@ -104,6 +112,11 @@
           "type": "boolean",
           "default": true,
           "description": "Replace lookalike Unicode characters with their ASCII equivalents (e.g. en dash → hyphen, curly quotes → straight quotes)."
+        },
+        "ilogicFormatter.enableCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest iLogic API roots (GoExcel, ThisDoc, Parameter, …) and their members in .iLogicVb files."
         }
       }
     }
@@ -111,7 +124,11 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
+    "compile:dev": "tsc -p tsconfig.test.json",
     "watch": "tsc -watch -p ./",
+    "test": "npm run compile:dev && node --test out-test/test/",
+    "generate": "npm run compile:dev && node out-test/scripts/generate.js",
+    "verify": "npm run compile && npm run generate && npm test && git diff --exit-code -- snippets src/generated",
     "package": "npm run compile && vsce package --out ilogic-formatter.vsix"
   },
   "devDependencies": {

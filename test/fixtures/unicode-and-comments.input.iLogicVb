@@ -1,0 +1,12 @@
+'iLogic rule pasted from a web page
+Dim width As Double = 10 – 2
+Dim label As String = “Part width”
+Dim area As Double = width × 2
+If area ≠ 0 And area ≥ 1 Then
+	MessageBox.Show(label)   'shows the label
+End If
+Dim volume As Double = width²
+
+
+
+Dim note As String = "an apostrophe ' inside a string is not a comment"

@@ -1,0 +1,39 @@
+public Sub Main
+    Dim total As Double = 0
+    If total > 0 Then
+        total = total + 1
+    ElseIf total = 0 Then
+        total = 1
+    Else
+        total = -1
+    End If
+    For i = 1 To 10
+        total = total + i
+    Next i
+    For Each part In parts
+        total = total + 1
+    Next
+    While total > 0
+        total = total - 1
+    End While
+    Do
+        total = total + 1
+    Loop Until total > 5
+    Try
+        total = total / 0
+    Catch ex As Exception
+        total = 0
+    Finally
+        total = 1
+    End Try
+    With someObject
+        .Name = "x"
+    End With
+    Using r As New StreamReader("f.txt")
+        total = 1
+    End Using
+End Sub
+
+private Function Area(ByVal w As Double, ByVal h As Double) As Double
+    Return w * h
+End Function

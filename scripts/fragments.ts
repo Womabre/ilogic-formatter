@@ -52,7 +52,10 @@ export const API_ROOTS = [
 const HEADING_2 = /^##\s+(.+?)\s*$/;
 const HEADING_3 = /^###\s+(.+?)\s*$/;
 const HEADING_4 = /^####\s+(.+?)\s*$/;
-const ANY_HEADING = /^#{2,4}\s+/;
+// Every heading level, not just the three the library uses: a fragment whose
+// body fence is missing must fail here rather than adopt a later section's.
+const ANY_HEADING = /^#{1,6}\s+/;
+const NESTED_PLACEHOLDER = /\$\{\d+[:|][^{}]*\$\{/;
 // `prefix` — description. Em dash or hyphen, description optional.
 const PREFIX_LINE = /^`([^`]+)`(?:\s*[—-]\s*(.*))?$/;
 const VB_FENCE_OPEN = /^```\s*vb\s*$/;
@@ -78,13 +81,19 @@ function stripLongFences(lines: string[]): string[] {
             fence = null;
         }
     }
+    if (fence !== null) {
+        // Everything after the opening fence was swallowed. Left unreported
+        // this regenerates a smaller pack and exits zero.
+        throw new Error("Unterminated ```` fence — the rest of the document was skipped.");
+    }
     return out;
 }
 
 export function parseFragments(markdown: string): Fragment[] {
     const lines = stripLongFences(markdown.split(/\r?\n/));
     const fragments: Fragment[] = [];
-    const seen = new Map<string, string>();
+    const seenPrefixes = new Map<string, string>();
+    const seenNames = new Set<string>();
     let category = "";
     let family = "";
 
@@ -106,6 +115,12 @@ export function parseFragments(markdown: string): Fragment[] {
         if (!h4) continue;
         const name = h4[1];
 
+        // Snippets are keyed by name, so a repeat would overwrite silently.
+        if (seenNames.has(name)) {
+            throw new Error(`Duplicate fragment name "${name}".`);
+        }
+        seenNames.add(name);
+
         // Prefix line: the next non-blank line, and it must stay within this
         // fragment — a heading means the prefix line is missing entirely.
         let j = i + 1;
@@ -117,11 +132,11 @@ export function parseFragments(markdown: string): Fragment[] {
         const prefix = prefixMatch[1];
         const description = (prefixMatch[2] ?? "").trim();
 
-        const previous = seen.get(prefix);
+        const previous = seenPrefixes.get(prefix);
         if (previous !== undefined) {
             throw new Error(`Duplicate prefix "${prefix}" on fragments "${previous}" and "${name}".`);
         }
-        seen.set(prefix, name);
+        seenPrefixes.set(prefix, name);
 
         // Body: the next vb fence, which must come before the next heading.
         let k = j + 1;
@@ -147,7 +162,14 @@ export function parseFragments(markdown: string): Fragment[] {
             throw new Error(`Fragment "${name}" has an unterminated body fence.`);
         }
 
-        fragments.push({ name, prefix, description, category, family, body: bodyLines.join("\n") });
+        const body = bodyLines.join("\n");
+        // stripPlaceholders reads to the first closing brace, so a nested
+        // placeholder would hide an API call from the member scanner.
+        if (NESTED_PLACEHOLDER.test(body)) {
+            throw new Error(`Fragment "${name}" has a nested placeholder, which is not supported.`);
+        }
+
+        fragments.push({ name, prefix, description, category, family, body });
     }
 
     return fragments;
@@ -178,15 +200,21 @@ export function stripPlaceholders(body: string): string {
         .replace(/\$\d+/g, "");
 }
 
-/** Blanks out the contents of string literals, keeping the quotes. */
-function blankStringLiterals(code: string): string {
+/**
+ * Reduces a line to the code the compiler would see: string literal contents
+ * blanked out, comment dropped. Prose in either place can look like a member
+ * access — "etc. here" parses as `etc.here` — and must not reach the table.
+ */
+function codeOnly(line: string): string {
     let out = "";
     let inString = false;
-    for (let i = 0; i < code.length; i++) {
-        const ch = code[i];
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
         if (ch === '"') {
             inString = !inString;
             out += '"';
+        } else if (ch === "'" && !inString) {
+            break;
         } else {
             out += inString ? " " : ch;
         }
@@ -209,7 +237,7 @@ export function toMemberTable(fragments: Fragment[]): Record<string, Member[]> {
     const collected = new Map<string, Map<string, Member["kind"]>>();
 
     for (const fragment of fragments) {
-        const code = blankStringLiterals(stripPlaceholders(fragment.body));
+        const code = stripPlaceholders(fragment.body).split("\n").map(codeOnly).join("\n");
         for (const match of code.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*(\()?/g)) {
             const [, root, name, paren] = match;
             if (!roots.has(root)) continue;

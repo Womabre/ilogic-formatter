@@ -71,6 +71,16 @@ test("comment normalization inserts a single space after the apostrophe", () => 
     assert.equal(format("'' banner\n"), "'' banner\n");
 });
 
+test("known gap: access modifiers are not cased", () => {
+    // Public/Private/Protected/Friend are missing from src/keywords.ts, so
+    // normalizeKeywords leaves them alone. Pinned here — and in the blocks
+    // fixture — as current behavior, not as desired behavior. Adding them to
+    // the keyword table is the fix; this test and that fixture both change
+    // when it happens.
+    assert.equal(format("public sub Main\nEnd Sub\n"), "public Sub Main\nEnd Sub\n");
+    assert.equal(format("private function F()\nEnd Function\n"), "private Function F()\nEnd Function\n");
+});
+
 test("maxBlankLines collapses runs of blank lines", () => {
     const input = "Dim a = 1\n\n\n\n\nDim b = 2\n";
     assert.equal(format(input, { maxBlankLines: 1 }), "Dim a = 1\n\nDim b = 2\n");

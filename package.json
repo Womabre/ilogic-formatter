@@ -128,7 +128,7 @@
     "watch": "tsc -watch -p ./",
     "test": "npm run compile:dev && node --test out-test/test/",
     "generate": "npm run compile:dev && node out-test/scripts/generate.js",
-    "verify": "npm run compile && npm run generate && npm test && git diff --exit-code",
+    "verify": "npm run compile && npm run generate && npm test && git diff --exit-code -- snippets src/generated",
     "package": "npm run compile && vsce package --out ilogic-formatter.vsix"
   },
   "devDependencies": {

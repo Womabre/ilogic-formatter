@@ -8,14 +8,16 @@ Prose that is not a fragment.
 
 ## Excel
 
-### Find a row by column value
+### Finding rows
+
+#### Find a row by column value
 \`goexcel-findrow\` — Search a worksheet for the first row matching a condition.
 
 \`\`\`vb
 i = GoExcel.FindRow("\${1:filename.xls}", "\${2:Sheet1}")
 \`\`\`
 
-### Read a single cell
+#### Read a single cell
 \`goexcel-cellvalue\` — Read one cell.
 
 \`\`\`vb
@@ -24,7 +26,9 @@ i = GoExcel.FindRow("\${1:filename.xls}", "\${2:Sheet1}")
 
 ## Parameters
 
-### Set a parameter
+### Setting values
+
+#### Set a parameter
 \`param-set\` — Write a value to a model parameter.
 
 \`\`\`vb
@@ -37,13 +41,20 @@ test("parses every fragment in the document", () => {
     assert.equal(fragments.length, 3);
 });
 
-test("captures name, prefix, description, category and body", () => {
+test("captures name, prefix, description, category, family and body", () => {
     const [first] = parseFragments(DOC);
     assert.equal(first.name, "Find a row by column value");
     assert.equal(first.prefix, "goexcel-findrow");
     assert.equal(first.description, "Search a worksheet for the first row matching a condition.");
     assert.equal(first.category, "Excel");
+    assert.equal(first.family, "Finding rows");
     assert.equal(first.body, 'i = GoExcel.FindRow("${1:filename.xls}", "${2:Sheet1}")');
+});
+
+test("a new category clears the family carried over from the previous one", () => {
+    const last = parseFragments(DOC).at(-1)!;
+    assert.equal(last.category, "Parameters");
+    assert.equal(last.family, "Setting values");
 });
 
 test("ignores prose outside fragments", () => {
@@ -53,22 +64,22 @@ test("ignores prose outside fragments", () => {
 
 test("does not treat a fenced example inside the format section as a fragment", () => {
     // A ````markdown fence containing a ```vb fence must not be parsed.
-    const doc = "## Format\n\n````markdown\n### Not a fragment\n`nope` — no.\n\n```vb\nx = 1\n```\n````\n";
+    const doc = "## Format\n\n````markdown\n#### Not a fragment\n`nope` — no.\n\n```vb\nx = 1\n```\n````\n";
     assert.deepEqual(parseFragments(doc), []);
 });
 
 test("rejects a fragment missing its prefix line", () => {
-    const doc = "## Excel\n\n### No prefix here\n\n```vb\nx = 1\n```\n";
+    const doc = "## Excel\n\n### Family\n\n#### No prefix here\n\n```vb\nx = 1\n```\n";
     assert.throws(() => parseFragments(doc), /prefix/i);
 });
 
 test("rejects a fragment missing its code fence", () => {
-    const doc = "## Excel\n\n### No body\n`nobody` — nothing follows.\n";
+    const doc = "## Excel\n\n### Family\n\n#### No body\n`nobody` — nothing follows.\n";
     assert.throws(() => parseFragments(doc), /body/i);
 });
 
 test("rejects duplicate prefixes", () => {
-    const doc = DOC + "\n### Another\n`goexcel-findrow` — clash.\n\n```vb\nx = 1\n```\n";
+    const doc = DOC + "\n#### Another\n`goexcel-findrow` — clash.\n\n```vb\nx = 1\n```\n";
     assert.throws(() => parseFragments(doc), /duplicate/i);
 });
 
@@ -81,7 +92,7 @@ test("builds a VS Code snippet file keyed by fragment name", () => {
 });
 
 test("splits multi-line bodies into a body array", () => {
-    const doc = "## C\n\n### Two lines\n`two` — d.\n\n```vb\nDim a = 1\nDim b = 2\n```\n";
+    const doc = "## C\n\n### F\n\n#### Two lines\n`two` — d.\n\n```vb\nDim a = 1\nDim b = 2\n```\n";
     const snippets = toSnippets(parseFragments(doc));
     assert.deepEqual(snippets["Two lines"].body, ["Dim a = 1", "Dim b = 2"]);
 });
@@ -102,7 +113,7 @@ test("collects members per API root, sorted and deduplicated", () => {
 });
 
 test("reports a member never called with arguments as a property", () => {
-    const doc = "## C\n\n### Options\n`opt` — d.\n\n```vb\nGoExcel.TitleRow = 1\nGoExcel.Save\n```\n";
+    const doc = "## C\n\n### F\n\n#### Options\n`opt` — d.\n\n```vb\nGoExcel.TitleRow = 1\nGoExcel.Save\n```\n";
     assert.deepEqual(toMemberTable(parseFragments(doc))["GoExcel"], [
         { name: "Save", kind: "property" },
         { name: "TitleRow", kind: "property" },
@@ -110,18 +121,18 @@ test("reports a member never called with arguments as a property", () => {
 });
 
 test("one call with parentheses is enough to report a member as a method", () => {
-    const doc = "## C\n\n### Mixed\n`mix` — d.\n\n```vb\nGoExcel.Open(\"f.xls\")\nGoExcel.Open\n```\n";
+    const doc = "## C\n\n### F\n\n#### Mixed\n`mix` — d.\n\n```vb\nGoExcel.Open(\"f.xls\")\nGoExcel.Open\n```\n";
     assert.deepEqual(toMemberTable(parseFragments(doc))["GoExcel"], [{ name: "Open", kind: "method" }]);
 });
 
 test("ignores members of roots that are not iLogic API roots", () => {
-    const doc = "## C\n\n### Local\n`local` — d.\n\n```vb\nDim s = myLocalVariable.Trim()\n```\n";
+    const doc = "## C\n\n### F\n\n#### Local\n`local` — d.\n\n```vb\nDim s = myLocalVariable.Trim()\n```\n";
     const table = toMemberTable(parseFragments(doc));
     assert.deepEqual(Object.keys(table), []);
 });
 
 test("does not collect members from inside string literals", () => {
-    const doc = '## C\n\n### Str\n`str` — d.\n\n```vb\nMessageBox.Show("GoExcel.NotAMember")\n```\n';
+    const doc = '## C\n\n### F\n\n#### Str\n`str` — d.\n\n```vb\nMessageBox.Show("GoExcel.NotAMember")\n```\n';
     const table = toMemberTable(parseFragments(doc));
     assert.equal(table["GoExcel"], undefined);
 });

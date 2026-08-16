@@ -74,6 +74,13 @@
     ],
     "description": "Redirect a linked spreadsheet to a different file."
   },
+  "Reach the Excel application object": {
+    "prefix": "goexcel-application",
+    "body": [
+      "excelApp = GoExcel.Application"
+    ],
+    "description": "Get the underlying Excel Application for anything the iLogic wrapper does not cover."
+  },
   "Configure the search behaviour": {
     "prefix": "goexcel-options",
     "body": [
@@ -84,13 +91,6 @@
       "$0"
     ],
     "description": "Set the header row, the first data row, the match tolerance and alerts."
-  },
-  "Reach the Excel application object": {
-    "prefix": "goexcel-application",
-    "body": [
-      "excelApp = GoExcel.Application"
-    ],
-    "description": "Get the underlying Excel Application for anything the iLogic wrapper does not cover."
   },
   "Read or write a shared variable": {
     "prefix": "sharedvariable",
@@ -163,6 +163,13 @@
     ],
     "description": "Address a component through its occurrence path."
   },
+  "Read a parameter as its equation": {
+    "prefix": "param-valueforequals",
+    "body": [
+      "${1:expression} = Parameter.ValueForEquals(\"${2:d0}\")"
+    ],
+    "description": "Read the expression a parameter is driven by, not its evaluated number."
+  },
   "Get the parameter object": {
     "prefix": "param-object",
     "body": [
@@ -190,22 +197,6 @@
       "Parameter.Param(\"${1:d1}\").Comment = \"${2:Comment set by a rule}\""
     ],
     "description": "Write the comment shown next to a parameter in the parameters dialog."
-  },
-  "Read a parameter as its equation": {
-    "prefix": "param-valueforequals",
-    "body": [
-      "${1:expression} = Parameter.ValueForEquals(\"${2:d0}\")"
-    ],
-    "description": "Read the expression a parameter is driven by, not its evaluated number."
-  },
-  "Suppress parameter dialogs and updates": {
-    "prefix": "param-quiet",
-    "body": [
-      "Parameter.Quiet = True",
-      "Parameter.UpdateAfterChange = ${1:False}",
-      "$0"
-    ],
-    "description": "Stop parameter changes from prompting or triggering an update mid-rule."
   },
   "Set a multi-value list": {
     "prefix": "multivalue-setlist",
@@ -256,6 +247,15 @@
     ],
     "description": "Select one of several values by position."
   },
+  "Suppress parameter dialogs and updates": {
+    "prefix": "param-quiet",
+    "body": [
+      "Parameter.Quiet = True",
+      "Parameter.UpdateAfterChange = ${1:False}",
+      "$0"
+    ],
+    "description": "Stop parameter changes from prompting or triggering an update mid-rule."
+  },
   "Load or save parameters as XML": {
     "prefix": "param-xml",
     "body": [
@@ -287,6 +287,13 @@
       "Component.ActiveModelState(\"${1:Part1:1}\") = \"${2:ModelState1}\""
     ],
     "description": "Switch a component to a different model state."
+  },
+  "Skip the document save prompt": {
+    "prefix": "component-skipsave",
+    "body": [
+      "Component.SkipDocumentSave = True"
+    ],
+    "description": "Stop component changes from marking documents dirty."
   },
   "Replace a component": {
     "prefix": "component-replace",
@@ -323,13 +330,6 @@
     ],
     "description": "Set an occurrence's visibility."
   },
-  "Skip the document save prompt": {
-    "prefix": "component-skipsave",
-    "body": [
-      "Component.SkipDocumentSave = True"
-    ],
-    "description": "Stop component changes from marking documents dirty."
-  },
   "Wrap drawing edits in a manage block": {
     "prefix": "thisdrawing-manage",
     "body": [
@@ -348,6 +348,20 @@
       "$0"
     ],
     "description": "The two lookups most drawing fragments start with."
+  },
+  "Suppress a view": {
+    "prefix": "thisdrawing-suppress-view",
+    "body": [
+      "ActiveSheet.View(\"${1:VIEW2}\").View.Suppressed = ${2:True}"
+    ],
+    "description": "Suppress or unsuppress a drawing view."
+  },
+  "Hide a layer": {
+    "prefix": "thisdrawing-layer-visible",
+    "body": [
+      "ThisDrawing.Document.StylesManager.Layers(\"${1:Dimension (ANSI)}\").Visible = ${2:False}"
+    ],
+    "description": "Turn a drawing layer off."
   },
   "Add a linear dimension": {
     "prefix": "thisdrawing-dim-linear",
@@ -474,20 +488,6 @@
     ],
     "description": "Address one occurrence within a feature pattern."
   },
-  "Suppress a view": {
-    "prefix": "thisdrawing-suppress-view",
-    "body": [
-      "ActiveSheet.View(\"${1:VIEW2}\").View.Suppressed = ${2:True}"
-    ],
-    "description": "Suppress or unsuppress a drawing view."
-  },
-  "Hide a layer": {
-    "prefix": "thisdrawing-layer-visible",
-    "body": [
-      "ThisDrawing.Document.StylesManager.Layers(\"${1:Dimension (ANSI)}\").Visible = ${2:False}"
-    ],
-    "description": "Turn a drawing layer off."
-  },
   "Get the model behind the drawing": {
     "prefix": "thisdrawing-modeldocument",
     "body": [
@@ -518,6 +518,27 @@
     ],
     "description": "Run another rule by name."
   },
+  "Run a rule in a component": {
+    "prefix": "ilogicvb-runrule-component",
+    "body": [
+      "iLogicVb.RunRule(\"${1:Part1:1}\", \"${2:ruleName}\")"
+    ],
+    "description": "Run a rule that lives in a component's document."
+  },
+  "Run an external rule": {
+    "prefix": "ilogicvb-runexternalrule",
+    "body": [
+      "iLogicVb.RunExternalRule(\"${1:ruleFileName}\")"
+    ],
+    "description": "Run a rule stored outside the document."
+  },
+  "Force a document update": {
+    "prefix": "documentupdate",
+    "body": [
+      "InventorVb.DocumentUpdate()"
+    ],
+    "description": "Rebuild the document after changing it."
+  },
   "Run a rule with arguments": {
     "prefix": "ilogicvb-runrule-args",
     "body": [
@@ -535,20 +556,6 @@
     ],
     "description": "Read a value passed in by the rule that started this one."
   },
-  "Run a rule in a component": {
-    "prefix": "ilogicvb-runrule-component",
-    "body": [
-      "iLogicVb.RunRule(\"${1:Part1:1}\", \"${2:ruleName}\")"
-    ],
-    "description": "Run a rule that lives in a component's document."
-  },
-  "Run an external rule": {
-    "prefix": "ilogicvb-runexternalrule",
-    "body": [
-      "iLogicVb.RunExternalRule(\"${1:ruleFileName}\")"
-    ],
-    "description": "Run a rule stored outside the document."
-  },
   "Run a VBA macro": {
     "prefix": "inventorvb-runmacro",
     "body": [
@@ -562,12 +569,5 @@
       "AddVbRule \"${1:RuleName}\""
     ],
     "description": "Make another rule, file or resource available to this one."
-  },
-  "Force a document update": {
-    "prefix": "documentupdate",
-    "body": [
-      "InventorVb.DocumentUpdate()"
-    ],
-    "description": "Rebuild the document after changing it."
   }
 }

@@ -1,0 +1,37 @@
+Imports System.Linq
+<Serializable> _
+Public Class Worker
+    <Obsolete("old"),
+        Description("x")>
+    Public Sub Run(items As List(Of Integer))
+        items.ForEach(Sub(x)
+            Logger.Info(x.ToString())
+        End Sub)
+        AddHandler timer.Tick,
+            Sub(s, e)
+                Tick()
+            End Sub
+        Dim square = Function(x As Integer) As Integer
+            Dim y = x * x
+            Return y
+        End Function
+        Dim twice = Function(x) x * 2
+        Dim outer = Function(a)
+            Return Function(b)
+                Return a + b
+            End Function
+        End Function
+        Dim msg = "a" &
+            "b"
+        If a AndAlso
+                b Then
+            c()
+        End If
+        If ready Then _
+            Go()
+        Dim arr = {
+            1, 2,
+            3}
+    End Sub
+
+End Class

@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-03
+
+### Added
+
+- Continuation lines get one extra indent level: lines after an explicit ` _`, and implicit continuations after a comma, an open bracket, an operator (`&`, `+`, `=`, ...) or a logical keyword (`AndAlso`, `OrElse`, ...). A continued block header (e.g. `If a AndAlso` / `b Then`) indents its continuation one level past the body, as wrapped parameter lists already did.
+- Multi-line lambdas (`Function(x)` / `Sub(s, e)` with the body on the next lines) indent their body, including lambdas passed as arguments (`list.ForEach(Sub(x)` ... `End Sub)`), lambdas after `AddHandler x,` and nested lambdas. No blank line is added after a lambda's `End Function` / `End Sub`.
+- Keyword casing covers every reserved VB keyword (`Public`, `Private`, `Of`, `ReDim`, `Call`, `AddressOf`, `NameOf`, `CShort`, ...) plus the unreserved `Preserve`, `Async`, `Await`, `Iterator`, `Yield`, `Off`, `Ansi`, `Unicode`. Unreserved words that are often variable names (`Key`, `Text`, `From`, `Where`, ...) are left alone.
+
+### Fixed
+
+- A continuation line is never read as the start of a statement. `If(a, b, c)` on a continuation line no longer opens an `If` block, a LINQ `Select` no longer opens a `Select Case`, and a single-line `Sub(x) ...` lambda no longer opens a `Sub`. Each of these used to shift the rest of the file one level right.
+- An attribute line ending in `_` (`<Serializable> _`) is followed by the real statement, which is classified and indented normally.
+- Lines that can only start a statement (`End If`, `Next`, `Else`, `Dim`, `If ... Then`, `Return`, ...) reset a paren count left open by unbalanced code, so one bad line cannot shift the rest of the file.
+- A comment-only line ends a pending `_` continuation, like a blank line does.
+
 ## [1.1.2] - 2026-10-03
 
 ### Fixed

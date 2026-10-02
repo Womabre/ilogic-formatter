@@ -1,5 +1,19 @@
-// Canonical casing for VB.NET / iLogic keywords
+// Canonical casing for VB.NET / iLogic keywords.
+//
+// Covers every reserved keyword in the VB language reference
+// (learn.microsoft.com/dotnet/visual-basic/language-reference/keywords), cased
+// as Roslyn writes them (Syntax.xml). Reserved words cannot be identifiers, so
+// recasing them is always safe. Unreserved (contextual) keywords are included
+// only where they are unlikely to be someone's variable name; Key, Text,
+// Binary, Auto, Custom, Assembly, Mid and the LINQ words (From, Where, Group,
+// Order, Join, ...) are left alone because a variable called "key" or "text"
+// would otherwise be recased.
 export const VB_KEYWORDS: Record<string, string> = {
+    // Access modifiers
+    public: "Public",
+    private: "Private",
+    protected: "Protected",
+    friend: "Friend",
     // Declarations
     dim: "Dim",
     as: "As",
@@ -15,6 +29,26 @@ export const VB_KEYWORDS: Record<string, string> = {
     notoverridable: "NotOverridable",
     shared: "Shared",
     partial: "Partial",
+    overloads: "Overloads",
+    mustinherit: "MustInherit",
+    notinheritable: "NotInheritable",
+    default: "Default",
+    writeonly: "WriteOnly",
+    widening: "Widening",
+    narrowing: "Narrowing",
+    declare: "Declare",
+    lib: "Lib",
+    alias: "Alias",
+    delegate: "Delegate",
+    event: "Event",
+    operator: "Operator",
+    of: "Of",
+    out: "Out",
+    global: "Global",
+    async: "Async",
+    iterator: "Iterator",
+    ansi: "Ansi",
+    unicode: "Unicode",
     // Types
     boolean: "Boolean",
     byte: "Byte",
@@ -60,6 +94,14 @@ export const VB_KEYWORDS: Record<string, string> = {
     continue: "Continue",
     return: "Return",
     goto: "GoTo",
+    call: "Call",
+    stop: "Stop",
+    yield: "Yield",
+    await: "Await",
+    redim: "ReDim",
+    preserve: "Preserve",
+    erase: "Erase",
+    let: "Let",
     // Error handling
     try: "Try",
     catch: "Catch",
@@ -126,6 +168,16 @@ export const VB_KEYWORDS: Record<string, string> = {
     clng: "CLng",
     csng: "CSng",
     cobj: "CObj",
+    cshort: "CShort",
+    csbyte: "CSByte",
+    cuint: "CUInt",
+    culng: "CULng",
+    cushort: "CUShort",
+    addressof: "AddressOf",
+    nameof: "NameOf",
+    getxmlnamespace: "GetXmlNamespace",
+    istrue: "IsTrue",
+    isfalse: "IsFalse",
     addhandler: "AddHandler",
     removehandler: "RemoveHandler",
     raiseevent: "RaiseEvent",
@@ -141,7 +193,12 @@ export const VB_KEYWORDS: Record<string, string> = {
     explicit: "Explicit",
     compare: "Compare",
     infer: "Infer",
+    off: "Off",
     on: "On",
     error: "Error",
     resume: "Resume",
+    // Obsolete but still reserved
+    gosub: "Gosub",
+    variant: "Variant",
+    wend: "Wend",
 };

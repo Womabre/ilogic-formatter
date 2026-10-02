@@ -66,6 +66,7 @@ bun test
 
 - iLogic rules use a VB.NET dialect with Inventor-specific globals (`iProperties`, `Parameter`, etc.) — these are treated as identifiers and their casing is left unchanged
 - Single-line `If x Then DoSomething` is detected and not indented
+- Continuation lines (after ` _`, a comma, an operator or an open bracket) are indented one extra level; multi-line lambdas indent their body
 - `ElseIf`, `Else`, `Catch`, `Finally` correctly dedent then re-indent
 - String literals and comments are never changed: keyword casing and Unicode replacement only touch code
 - Formatter tests live in `test/fixtures/<name>/` as `input.iLogicVb` + `expected.iLogicVb`; a `todo.md` marks a known bug

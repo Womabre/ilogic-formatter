@@ -1,0 +1,12 @@
+Sub Main()
+oStandard = oStylesMgr.StandardStyles _
+'  .Item(kStandardName)
+If oStandard Is Nothing Then
+oStandard = oStylesMgr.StandardStyles _
+' .Item(1).Copy(kStandardName)
+End If
+x = Broken((1)
+If y Then
+z = 1
+End If
+End Sub

@@ -45,8 +45,8 @@ Function Area(w As Double, h As Double) As Double
     Return w * h
 End Function
 
-private ReadOnly Property Width As Double
-public Property Height As Double
+Private ReadOnly Property Width As Double
+Public Property Height As Double
     Get
         Return _h
     End Get

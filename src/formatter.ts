@@ -94,8 +94,13 @@ function normalizeLineUnicode(tokens: Token[]): Token[] {
 
 const BLOCK_ENDERS = new Set(["end sub", "end function", "end property"]);
 
-type StackEntry = { kind: "block"; keyword: string } | { kind: "select"; level: number };
-type LineClass = "opener" | "closer" | "end-select" | "select" | "case" | "else" | "catch" | "finally" | "none";
+type StackEntry =
+    | { kind: "block"; keyword: string }
+    // A multi-line lambda: the body indents from `level`, the paren depth of
+    // the enclosing statement is set aside until its End Sub/End Function.
+    | { kind: "lambda"; level: number; outerLevel: number; savedParenDepth: number }
+    | { kind: "select"; level: number };
+type LineClass = "opener" | "lambda" | "closer" | "end-select" | "select" | "case" | "else" | "catch" | "finally" | "none";
 
 export function format(text: string, options: FormatOptions = {}): string {
     const result = formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }).flat();
@@ -134,6 +139,12 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
     let consecutiveBlanks = 0;
     let parenDepth = 0;
     let state: LineState = INITIAL_STATE;
+    // The previous code line ended in "_", an operator or a comma, so this
+    // line continues its statement
+    let continuesStatement = false;
+    // The previous code line closed an attribute ("<Attr> _"): the line after
+    // it starts the real statement
+    let afterAttribute = false;
     const indentChar = opts.useTabs ? "\t" : " ".repeat(opts.indentSize);
     const stack: StackEntry[] = [];
 
@@ -149,6 +160,11 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
             out[i].push(rawLine);
             consecutiveBlanks = 0;
             parenDepth = Math.max(0, parenDepth + countNetParens(tokenized.tokens));
+            if (!state.openString) {
+                const tail = codeOnly(tokenized.tokens).trim().toLowerCase();
+                continuesStatement = endsWithContinuation(tail);
+                afterAttribute = endsAttribute(tail);
+            }
             continue;
         }
 
@@ -168,6 +184,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
 
         // ── Blank lines ─────────────────────────────────────────────────────────
         if (tokens.every((t) => t.text.trim() === "")) {
+            continuesStatement = false;
             consecutiveBlanks++;
             if (consecutiveBlanks <= opts.maxBlankLines) {
                 out[i].push("");
@@ -198,18 +215,37 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
             if (t !== "") { nextNorm = t.toLowerCase(); break; }
         }
 
-        const cls = classifyLine(norm, nextNorm, innermostBlock(stack));
+        // A continuation line is never the start of a statement, so it can only
+        // open a multi-line lambda (e.g. "If(a, b, c)" here is the If operator).
+        // Lines that can only start a statement (End If, Next, Else, ...) never
+        // continue one: they also reset a paren count left open by unbalanced
+        // code, so one bad line cannot shift the rest of the file. A comment-only
+        // line ends a pending "_" or operator continuation, like a blank line.
+        const startsStatement = STATEMENT_ONLY.test(norm);
+        if (startsStatement) parenDepth = 0;
+        const isContinuation = !startsStatement &&
+            (parenDepth > 0 || (norm !== "" && continuesStatement && !afterAttribute));
+        const cls: LineClass = isContinuation
+            ? (isLambdaOpener(norm) ? "lambda" : "none")
+            : classifyLine(norm, nextNorm, innermostBlock(stack));
+        let closedLambda: (StackEntry & { kind: "lambda" }) | null = null;
 
         // ── Pre-line dedent ──────────────────────────────────────────────────────
         switch (cls) {
-            case "closer":
+            case "closer": {
+                const top = stack.length > 0 ? stack[stack.length - 1] : null;
+                if (top?.kind === "lambda") {
+                    stack.pop();
+                    closedLambda = top;
+                    indentLevel = top.level - 1;
+                    break;
+                }
                 indentLevel = Math.max(0, indentLevel - 1);
-                if (stack.length > 0) {
-                    for (let j = stack.length - 1; j >= 0; j--) {
-                        if (stack[j].kind === "block") { stack.splice(j, 1); break; }
-                    }
+                for (let j = stack.length - 1; j >= 0; j--) {
+                    if (stack[j].kind === "block") { stack.splice(j, 1); break; }
                 }
                 break;
+            }
             case "end-select": {
                 const sel = findTopmostSelect(stack);
                 if (sel) {
@@ -238,7 +274,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         }
 
         // ── Emit line ────────────────────────────────────────────────────────────
-        const continuationExtra = parenDepth > 0 ? 1 : 0;
+        const continuationExtra = isContinuation ? 1 : 0;
         const indent = indentChar.repeat(Math.max(0, indentLevel + continuationExtra));
         const codePart = formattedCode.trimStart();
         let outputLine: string;
@@ -252,13 +288,33 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         out[i].push(outputLine);
 
         // ── Track open parentheses for continuation-line indentation ─────────────
+        if (closedLambda) {
+            // Back in the enclosing statement, e.g. the ")" in "End Sub)"
+            parenDepth = closedLambda.savedParenDepth;
+            indentLevel = closedLambda.outerLevel;
+        }
         parenDepth = Math.max(0, parenDepth + countNetParens(casedTokens));
+        continuesStatement = norm !== "" && endsWithContinuation(norm);
+        afterAttribute = norm !== "" && endsAttribute(norm);
 
         // ── Post-line indent ─────────────────────────────────────────────────────
         switch (cls) {
             case "opener":
                 stack.push({ kind: "block", keyword: blockKeyword(norm) });
                 indentLevel++;
+                break;
+            case "lambda":
+                // The body indents one level past where the header was drawn
+                // (including any continuation indent); its parens start fresh.
+                stack.push({
+                    kind: "lambda",
+                    level: indentLevel + continuationExtra + 1,
+                    outerLevel: indentLevel,
+                    savedParenDepth: parenDepth,
+                });
+                indentLevel += continuationExtra + 1;
+                parenDepth = 0;
+                continuesStatement = false;
                 break;
             case "select":
                 // Push with the current indent level so Case can snap back to level+1
@@ -277,7 +333,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         }
 
         // ── Blank line after End Sub / End Function / End Property ───────────────
-        if (opts.blankLineAfterBlock && BLOCK_ENDERS.has(norm)) {
+        if (opts.blankLineAfterBlock && BLOCK_ENDERS.has(norm) && !closedLambda) {
             const nextLine = lines[i + 1];
             if (nextLine !== undefined && nextLine.trim() !== "") {
                 out[i].push("");
@@ -355,6 +411,10 @@ function classifyLine(norm: string, nextNorm: string | null = null, container: s
 
     const effectiveKeyword = blockKeyword(norm);
 
+    // "Sub(" / "Function(" with no name is a lambda, not a declaration
+    if (isLambdaOpener(norm)) return "lambda";
+    if (MEMBER_KEYWORDS.has(effectiveKeyword) && new RegExp("\\b" + effectiveKeyword + "\\s*\\(").test(norm)) return "none";
+
     if (BLOCK_OPENERS.has(effectiveKeyword)) {
         // Declarations without a body: MustOverride members, and member
         // signatures inside an Interface (nested types there still have a body).
@@ -378,6 +438,49 @@ function classifyLine(norm: string, nextNorm: string | null = null, container: s
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Line endings after which VB continues the statement on the next line:
+// explicit " _", and the implicit-continuation tokens (comma, open bracket,
+// assignment/arithmetic/concatenation operators, logical keywords).
+const CONTINUATION_END = /(?:(?:^|\s)_|[,({=&+\-*\/\\^]|\b(?:andalso|orelse|and|or|xor|not|is|isnot|like|mod))$/;
+
+// Keywords that can only begin a statement, never continue one
+const STATEMENT_ONLY = new RegExp("^(?:" + [
+    "end\\s+(?:if|sub|function|property|get|set|class|interface|structure|enum|module|namespace|with|using|synclock|try|while|select)\\b",
+    "(?:next|loop|else|elseif|case|catch|finally|dim|for|return|try|do|while|using|throw|exit)\\b",
+    "select\\s+case\\b",
+    "if\\b.*\\bthen\\b", // an If statement; the If() operator never has Then
+].join("|") + ")");
+
+function endsWithContinuation(norm: string): boolean {
+    return CONTINUATION_END.test(norm.trimEnd());
+}
+
+/** The line closes an attribute ("<Attr()>" or "<Attr()> _"), so the next line starts the statement. */
+function endsAttribute(norm: string): boolean {
+    return /^<.*>\s*(_)?$/.test(norm.trim()) || /[^<>=]>\s*_$/.test(norm.trim());
+}
+
+/**
+ * The line opens a multi-line lambda: a `Sub(...)` or `Function(...)` whose
+ * parameter list (and optional "As Type") ends the line, so the body follows.
+ */
+function isLambdaOpener(norm: string): boolean {
+    const header = /\b(?:sub|function)\s*\(/g;
+    let m: RegExpExecArray | null;
+    while ((m = header.exec(norm)) !== null) {
+        let depth = 0;
+        let close = -1;
+        for (let k = m.index + m[0].length - 1; k < norm.length; k++) {
+            if (norm[k] === "(") depth++;
+            else if (norm[k] === ")" && --depth === 0) { close = k; break; }
+        }
+        if (close < 0) return false;
+        const rest = norm.slice(close + 1);
+        if (/^\s*(?:as\s+[a-z_][\w.]*(?:\s*\(\s*of\b[^)]*\))?)?\s*(?:_)?\s*$/.test(rest)) return true;
+    }
+    return false;
+}
 
 function findTopmostSelect(stack: StackEntry[]): (StackEntry & { kind: "select" }) | null {
     for (let i = stack.length - 1; i >= 0; i--) {

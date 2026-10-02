@@ -1,0 +1,37 @@
+Public Interface IShape
+ReadOnly Property Area As Double
+Property Name As String
+Function Scale(f As Double) As IShape
+Sub Draw()
+Event Changed()
+Class Nested
+Sub Run()
+x = 1
+End Sub
+End Class
+End Interface
+Public MustInherit Class Shape
+Implements IShape
+Public MustOverride ReadOnly Property Area As Double Implements IShape.Area
+Protected MustOverride Function Scale(f As Double) As IShape
+Public MustOverride Sub Draw()
+Public Overloads Function Describe() As String
+Return "shape"
+End Function
+Default Public ReadOnly Property Item(i As Integer) As Double
+Get
+Return i
+End Get
+End Property
+Public WriteOnly Property Tag As String
+Set(value As String)
+_tag = value
+End Set
+End Property
+End Class
+Public NotInheritable Class Helpers
+Declare Function GetTickCount Lib "kernel32" () As Integer
+Delegate Sub Callback(x As Integer)
+Partial Private Sub OnLoaded()
+End Sub
+End Class

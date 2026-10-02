@@ -94,7 +94,7 @@ function normalizeLineUnicode(tokens: Token[]): Token[] {
 
 const BLOCK_ENDERS = new Set(["end sub", "end function", "end property"]);
 
-type StackEntry = { kind: "block" } | { kind: "select"; level: number };
+type StackEntry = { kind: "block"; keyword: string } | { kind: "select"; level: number };
 type LineClass = "opener" | "closer" | "end-select" | "select" | "case" | "else" | "catch" | "finally" | "none";
 
 export function format(text: string, options: FormatOptions = {}): string {
@@ -198,7 +198,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
             if (t !== "") { nextNorm = t.toLowerCase(); break; }
         }
 
-        const cls = classifyLine(norm, nextNorm);
+        const cls = classifyLine(norm, nextNorm, innermostBlock(stack));
 
         // ── Pre-line dedent ──────────────────────────────────────────────────────
         switch (cls) {
@@ -257,7 +257,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         // ── Post-line indent ─────────────────────────────────────────────────────
         switch (cls) {
             case "opener":
-                stack.push({ kind: "block" });
+                stack.push({ kind: "block", keyword: blockKeyword(norm) });
                 indentLevel++;
                 break;
             case "select":
@@ -290,11 +290,47 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
 
 // ── Classifier ───────────────────────────────────────────────────────────────
 
-function classifyLine(norm: string, nextNorm: string | null = null): LineClass {
+// Modifiers that can appear before a block keyword,
+// e.g. "Public Shared Function", "Protected Overrides Sub", "MustInherit Class"
+const MODIFIERS = new Set([
+    "public", "private", "protected", "friend", "shared", "static",
+    "overrides", "overridable", "mustoverride", "notoverridable", "overloads",
+    "mustinherit", "notinheritable", "shadows", "partial", "default",
+    "readonly", "writeonly", "withevents", "async", "iterator",
+    "widening", "narrowing",
+]);
+const BLOCK_OPENERS = new Set([
+    "for", "while", "do", "sub", "function", "property", "get", "set",
+    "with", "using", "synclock", "try", "class", "interface", "structure",
+    "enum", "module", "namespace",
+]);
+// Members that have no body when declared MustOverride or inside an Interface
+const MEMBER_KEYWORDS = new Set(["sub", "function", "property"]);
+
+/** The statement's keyword: its first word that isn't a modifier (e.g. "class" for "MustInherit Class A"). */
+function blockKeyword(norm: string): string {
+    const words = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
+    return words.find((w) => !MODIFIERS.has(w)) ?? words[0] ?? "";
+}
+
+function innermostBlock(stack: StackEntry[]): string | null {
+    for (let i = stack.length - 1; i >= 0; i--) {
+        const entry = stack[i];
+        if (entry.kind === "block") return entry.keyword;
+    }
+    return null;
+}
+
+/**
+ * `container` is the keyword of the innermost open block (e.g. "interface"),
+ * or null at file level. Needed because a member signature inside an
+ * Interface looks exactly like the first line of a Sub/Function block.
+ */
+function classifyLine(norm: string, nextNorm: string | null = null, container: string | null = null): LineClass {
     // `norm` has every string literal blanked to "", so words inside strings
     // (e.g. "Do you want..." → "do") can never be read as keywords.
     // Extract identifier tokens, stripping parens/operators (e.g. "Set(value" → "set")
-    const words = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
+    const words: string[] = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
     const first = words[0] ?? "";
     const two = words.slice(0, 2).join(" ");
 
@@ -317,23 +353,15 @@ function classifyLine(norm: string, nextNorm: string | null = null): LineClass {
         return hasSingleLineBody(norm) ? "none" : "opener";
     }
 
-    // Access modifiers / other prefixes that appear before the block keyword
-    // e.g. "Public Shared Function", "Private Sub", "Protected Overrides Sub"
-    const MODIFIERS = new Set([
-        "public", "private", "protected", "friend", "shared", "static",
-        "overrides", "overridable", "mustoverride", "notoverridable",
-        "shadows", "partial", "readonly", "withevents", "async", "iterator",
-    ]);
-    const BLOCK_OPENERS = new Set([
-        "for", "while", "do", "sub", "function", "property", "get", "set",
-        "with", "using", "synclock", "try", "class", "interface", "structure",
-        "enum", "module", "namespace",
-    ]);
-
-    // Find the first word that isn't a modifier — that's the real keyword
-    const effectiveKeyword = words.find(w => !MODIFIERS.has(w)) ?? first;
+    const effectiveKeyword = blockKeyword(norm);
 
     if (BLOCK_OPENERS.has(effectiveKeyword)) {
+        // Declarations without a body: MustOverride members, and member
+        // signatures inside an Interface (nested types there still have a body).
+        if (MEMBER_KEYWORDS.has(effectiveKeyword)) {
+            if (container === "interface") return "none";
+            if (words.slice(0, words.indexOf(effectiveKeyword)).includes("mustoverride")) return "none";
+        }
         // Auto-properties are single-line and have no Get/Set/End Property block.
         // Only treat Property as a block opener when the next non-blank line
         // is Get, Set, or End Property.

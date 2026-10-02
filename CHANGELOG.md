@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-03
+
+### Fixed
+
+- Member signatures inside an `Interface` (`Sub`, `Function`, `Property`) no longer open a block. Before, every member indented the next line further, and everything after the interface drifted right. Nested types inside an interface are still indented.
+- `MustOverride` members no longer open a block that never closes.
+- `MustInherit`, `NotInheritable`, `Overloads`, `WriteOnly`, `Default`, `Widening` and `Narrowing` are recognised as modifiers, so `MustInherit Class`, `Friend NotInheritable Class`, `WriteOnly Property` and the like indent their body.
+
 ## [1.1.1] - 2026-10-03
 
 ### Fixed

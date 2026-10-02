@@ -15,6 +15,7 @@ A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` fil
 The formatter hooks into VS Code's standard formatting commands:
 
 - **Format Document**: `Shift+Alt+F`
+- **Format Selection**: `Ctrl+K Ctrl+F` (keeps the indentation of the surrounding code; also used by `editor.formatOnPaste`)
 - **Format on Save**: enable via `editor.formatOnSave` in settings
 
 ## Configuration

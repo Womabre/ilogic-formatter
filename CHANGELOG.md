@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-03
+
+### Fixed
+
+- Format Selection and format on paste keep the surrounding indentation. Before, the selection was formatted as if it were a whole file, so lines inside a `Sub` went back to column 0, and a stray newline was added when the selection ended mid-line. The selected lines are now formatted with the block and blank-line state of the whole document, and lines outside the selection never change.
+
 ## [1.1.0] - 2026-10-03
 
 ### Added

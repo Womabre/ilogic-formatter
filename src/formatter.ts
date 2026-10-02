@@ -98,10 +98,38 @@ type StackEntry = { kind: "block" } | { kind: "select"; level: number };
 type LineClass = "opener" | "closer" | "end-select" | "select" | "case" | "else" | "catch" | "finally" | "none";
 
 export function format(text: string, options: FormatOptions = {}): string {
-    const opts = { ...DEFAULT_OPTIONS, ...options };
+    const result = formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }).flat();
+    while (result.length > 0 && result[result.length - 1] === "") {
+        result.pop();
+    }
+    return result.join("\n") + "\n";
+}
 
+/**
+ * Formats lines `startLine`..`endLine` (0-based, inclusive) of `text`.
+ * Indentation, open blocks and blank-line state come from the whole document,
+ * so a selection inside a Sub keeps its context. Returns the replacement for
+ * exactly those full lines, without a trailing newline; when the range reaches
+ * the last line it ends the way `format` ends the file.
+ */
+export function formatRange(text: string, startLine: number, endLine: number, options: FormatOptions = {}): string {
     const lines = text.split(/\r?\n/);
-    const result: string[] = [];
+    const last = lines.length - 1;
+    const start = Math.max(0, Math.min(startLine, last));
+    const end = Math.max(start, Math.min(endLine, last));
+    const result = formatLines(lines, { ...DEFAULT_OPTIONS, ...options }).slice(start, end + 1).flat();
+    if (end === last) {
+        while (result.length > 0 && result[result.length - 1] === "") {
+            result.pop();
+        }
+        result.push("");
+    }
+    return result.join("\n");
+}
+
+/** Runs the formatter over every line; entry i holds the output lines for input line i (0, 1 or 2). */
+function formatLines(lines: string[], opts: Required<FormatOptions>): string[][] {
+    const out: string[][] = lines.map(() => []);
     let indentLevel = 0;
     let consecutiveBlanks = 0;
     let parenDepth = 0;
@@ -118,7 +146,7 @@ export function format(text: string, options: FormatOptions = {}): string {
         if (state.openString) {
             const tokenized = tokenizeLine(rawLine, state);
             state = tokenized.endState;
-            result.push(rawLine);
+            out[i].push(rawLine);
             consecutiveBlanks = 0;
             parenDepth = Math.max(0, parenDepth + countNetParens(tokenized.tokens));
             continue;
@@ -142,7 +170,7 @@ export function format(text: string, options: FormatOptions = {}): string {
         if (tokens.every((t) => t.text.trim() === "")) {
             consecutiveBlanks++;
             if (consecutiveBlanks <= opts.maxBlankLines) {
-                result.push("");
+                out[i].push("");
             }
             continue;
         }
@@ -221,7 +249,7 @@ export function format(text: string, options: FormatOptions = {}): string {
         } else {
             outputLine = indent + codePart;
         }
-        result.push(outputLine);
+        out[i].push(outputLine);
 
         // ── Track open parentheses for continuation-line indentation ─────────────
         parenDepth = Math.max(0, parenDepth + countNetParens(casedTokens));
@@ -252,15 +280,12 @@ export function format(text: string, options: FormatOptions = {}): string {
         if (opts.blankLineAfterBlock && BLOCK_ENDERS.has(norm)) {
             const nextLine = lines[i + 1];
             if (nextLine !== undefined && nextLine.trim() !== "") {
-                result.push("");
+                out[i].push("");
             }
         }
     }
 
-    while (result.length > 0 && result[result.length - 1] === "") {
-        result.pop();
-    }
-    return result.join("\n") + "\n";
+    return out;
 }
 
 // ── Classifier ───────────────────────────────────────────────────────────────

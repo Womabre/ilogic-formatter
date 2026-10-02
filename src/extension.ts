@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { format, FormatOptions } from "./formatter";
+import { format, FormatOptions, formatRange } from "./formatter";
 
 export function activate(context: vscode.ExtensionContext) {
     const iLogicSelector = [
@@ -37,13 +37,18 @@ export function activate(context: vscode.ExtensionContext) {
         },
     };
 
-    // Also support range formatting (format selection)
+    // Range formatting (Format Selection, format on paste): formats the touched
+    // lines with indentation taken from the whole document.
     const rangeProvider: vscode.DocumentRangeFormattingEditProvider = {
         provideDocumentRangeFormattingEdits(document, range) {
-            const text = document.getText(range);
-            const formatted = format(text, getOptions());
-            if (formatted === text) return [];
-            return [vscode.TextEdit.replace(range, formatted)];
+            const startLine = range.start.line;
+            let endLine = range.end.line;
+            // A selection ending at column 0 does not include that line
+            if (range.end.character === 0 && endLine > startLine) endLine--;
+            const formatted = formatRange(document.getText(), startLine, endLine, getOptions());
+            const lineRange = new vscode.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
+            if (formatted === document.getText(lineRange).replace(/\r\n/g, "\n")) return [];
+            return [vscode.TextEdit.replace(lineRange, formatted)];
         },
     };
 

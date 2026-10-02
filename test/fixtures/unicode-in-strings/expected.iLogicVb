@@ -1,0 +1,5 @@
+Sub main()
+    iProperties.Value("Custom", "Size") = "Pipe 1/2″ – area 4 m²"
+    msg = "a b × c ≤ d"
+    ' Länge – Breite ≥ 0
+End Sub

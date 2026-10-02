@@ -1,0 +1,5 @@
+If s = "then what" Then
+x = 1
+End If
+If t = "Then" Then y = 2
+z = 3

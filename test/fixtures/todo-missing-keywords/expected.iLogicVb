@@ -1,0 +1,5 @@
+Public Sub Main()
+    Dim l As New list(Of String)
+    ReDim Preserve arr(5)
+    Call foo(AddressOf bar)
+End Sub

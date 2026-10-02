@@ -1,4 +1,5 @@
 import { VB_KEYWORDS } from "./keywords";
+import { codeOnly, INITIAL_STATE, isDoubleQuote, isSingleQuote, LineState, Token, tokenizeLine } from "./tokenizer";
 
 export interface FormatOptions {
     indentSize?: number;
@@ -22,7 +23,9 @@ const DEFAULT_OPTIONS: Required<FormatOptions> = {
 
 /**
  * Unicode characters that are visually similar to ASCII equivalents
- * but will cause compile errors in VB.NET / iLogic.
+ * but will cause compile errors in VB.NET / iLogic code.
+ * Applied to code tokens only: string literals and comments keep their text.
+ * Curly quote delimiters and comment markers are handled by the tokenizer.
  *
  * Each entry: [unicode char, replacement, description]
  */
@@ -31,11 +34,7 @@ const UNICODE_REPLACEMENTS: [string, string, string][] = [
     ["–", "-", "en dash"],
     ["—", "-", "em dash"],
     ["−", "-", "minus sign"],
-    // Quotes → straight quotes
-    ["‘", "'", "left single quotation mark"],
-    ["’", "'", "right single quotation mark"],
-    ["“", "\"", "left double quotation mark"],
-    ["”", "\"", "right double quotation mark"],
+    // Quote lookalikes VB does not treat as delimiters
     ["„", "\"", "double low-9 quotation mark"],
     ["′", "'", "prime"],
     ["″", "\"", "double prime"],
@@ -67,6 +66,32 @@ function normalizeUnicode(text: string): string {
     return text.replace(UNICODE_REGEX, (ch) => UNICODE_MAP.get(ch) ?? ch);
 }
 
+/**
+ * Replaces lookalikes in code tokens, and turns curly/fullwidth string
+ * delimiters and comment markers into ASCII. VB already reads those as
+ * delimiters, so this changes appearance only, never meaning. String content
+ * (including doubled-quote escapes) and comment text are left alone.
+ */
+function normalizeLineUnicode(tokens: Token[]): Token[] {
+    return tokens.map((t) => {
+        if (t.kind === "code") return { ...t, text: normalizeUnicode(t.text) };
+        if (t.kind === "comment") {
+            // The leading run of markers (' or ''' doc comments); the text after stays as written.
+            let n = 0;
+            while (isSingleQuote(t.text[n])) n++;
+            return { ...t, text: "'".repeat(n) + t.text.slice(n) };
+        }
+        let text = t.text;
+        const open = text[0] === "$" ? 1 : 0;
+        if (isDoubleQuote(text[open])) text = text.slice(0, open) + '"' + text.slice(open + 1);
+        const last = text.length - 1;
+        if (last > open && isDoubleQuote(text[last])) {
+            text = text.slice(0, last) + '"';
+        }
+        return { ...t, text };
+    });
+}
+
 const BLOCK_ENDERS = new Set(["end sub", "end function", "end property"]);
 
 type StackEntry = { kind: "block" } | { kind: "select"; level: number };
@@ -75,22 +100,46 @@ type LineClass = "opener" | "closer" | "end-select" | "select" | "case" | "else"
 export function format(text: string, options: FormatOptions = {}): string {
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
-    // ── Unicode normalization (whole-file pass before line processing) ─────────
-    const normalized = opts.normalizeUnicode ? normalizeUnicode(text) : text;
-    const lines = normalized.split(/\r?\n/);
+    const lines = text.split(/\r?\n/);
     const result: string[] = [];
     let indentLevel = 0;
     let consecutiveBlanks = 0;
     let parenDepth = 0;
+    let state: LineState = INITIAL_STATE;
     const indentChar = opts.useTabs ? "\t" : " ".repeat(opts.indentSize);
     const stack: StackEntry[] = [];
 
     for (let i = 0; i < lines.length; i++) {
         const rawLine = lines[i];
-        const trimmed = rawLine.trim();
+
+        // ── Continuation of a multi-line string: emit verbatim ──────────────────
+        // Trimming, re-indenting or dropping blank lines here would change the
+        // string's value. Only the code after the closing quote is tracked.
+        if (state.openString) {
+            const tokenized = tokenizeLine(rawLine, state);
+            state = tokenized.endState;
+            result.push(rawLine);
+            consecutiveBlanks = 0;
+            parenDepth = Math.max(0, parenDepth + countNetParens(tokenized.tokens));
+            continue;
+        }
+
+        // ── Tokenize (and normalize lookalikes in code only) ─────────────────────
+        // A line that ends inside a string keeps its trailing whitespace: it is
+        // part of the string value.
+        const lineStart = state;
+        let tokenized = tokenizeLine(rawLine.trimStart(), lineStart);
+        if (opts.normalizeUnicode) {
+            // Re-tokenize: a normalized lookalike (e.g. ″ → ") can open a string.
+            const normalizedLine = normalizeLineUnicode(tokenized.tokens).map((t) => t.text).join("");
+            tokenized = tokenizeLine(normalizedLine, lineStart);
+        }
+        state = tokenized.endState;
+        const tokens = tokenized.tokens;
+        const endsInString = state.openString !== null;
 
         // ── Blank lines ─────────────────────────────────────────────────────────
-        if (trimmed === "") {
+        if (tokens.every((t) => t.text.trim() === "")) {
             consecutiveBlanks++;
             if (consecutiveBlanks <= opts.maxBlankLines) {
                 result.push("");
@@ -100,19 +149,19 @@ export function format(text: string, options: FormatOptions = {}): string {
         consecutiveBlanks = 0;
 
         // ── Split comment ────────────────────────────────────────────────────────
-        const { code, comment } = splitCodeAndComment(trimmed);
-        let formattedComment = comment;
-        if (opts.normalizeComments && comment !== null) {
-            formattedComment = normalizeComment(comment);
+        const commentToken = tokens.find((t) => t.kind === "comment");
+        let formattedComment = commentToken ? commentToken.text.trimEnd() : null;
+        if (opts.normalizeComments && formattedComment !== null) {
+            formattedComment = normalizeComment(formattedComment);
         }
 
-        let formattedCode = code;
-        if (opts.normalizeKeywords && code.trim() !== "") {
-            formattedCode = applyKeywordCasing(code);
-        }
+        const codeTokens = tokens.filter((t) => t.kind !== "comment");
+        const casedTokens = opts.normalizeKeywords ? codeTokens.map(applyKeywordCasing) : codeTokens;
+        let formattedCode = casedTokens.map((t) => t.text).join("");
+        formattedCode = endsInString ? formattedCode : formattedCode.trimEnd();
 
-        // ── Classify ─────────────────────────────────────────────────────────────
-        const norm = formattedCode.trim().toLowerCase();
+        // ── Classify (strings blanked, so their words never match keywords) ──────
+        const norm = codeOnly(casedTokens).trim().toLowerCase();
 
         // Lookahead: find next non-blank line for context-sensitive classification
         let nextNorm: string | null = null;
@@ -163,7 +212,7 @@ export function format(text: string, options: FormatOptions = {}): string {
         // ── Emit line ────────────────────────────────────────────────────────────
         const continuationExtra = parenDepth > 0 ? 1 : 0;
         const indent = indentChar.repeat(Math.max(0, indentLevel + continuationExtra));
-        const codePart = formattedCode.trim();
+        const codePart = formattedCode.trimStart();
         let outputLine: string;
         if (codePart === "" && formattedComment !== null) {
             outputLine = indent + formattedComment;
@@ -175,7 +224,7 @@ export function format(text: string, options: FormatOptions = {}): string {
         result.push(outputLine);
 
         // ── Track open parentheses for continuation-line indentation ─────────────
-        parenDepth = Math.max(0, parenDepth + countNetParens(codePart));
+        parenDepth = Math.max(0, parenDepth + countNetParens(casedTokens));
 
         // ── Post-line indent ─────────────────────────────────────────────────────
         switch (cls) {
@@ -217,14 +266,10 @@ export function format(text: string, options: FormatOptions = {}): string {
 // ── Classifier ───────────────────────────────────────────────────────────────
 
 function classifyLine(norm: string, nextNorm: string | null = null): LineClass {
-    // Only classify the code that appears before the first string literal —
-    // keywords are always at the start of the statement, and pulling words
-    // from inside strings causes false matches (e.g. "Do you want..." → "do").
-    const firstQuote = norm.indexOf('"');
-    const codeHead = firstQuote >= 0 ? norm.slice(0, firstQuote) : norm;
-
+    // `norm` has every string literal blanked to "", so words inside strings
+    // (e.g. "Do you want..." → "do") can never be read as keywords.
     // Extract identifier tokens, stripping parens/operators (e.g. "Set(value" → "set")
-    const words = codeHead.match(/[a-z][a-z0-9_]*/g) ?? [];
+    const words = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
     const first = words[0] ?? "";
     const two = words.slice(0, 2).join(" ");
 
@@ -288,73 +333,30 @@ function findTopmostSelect(stack: StackEntry[]): (StackEntry & { kind: "select" 
     return null;
 }
 
-function splitCodeAndComment(line: string): { code: string; comment: string | null } {
-    let inString = false;
-    for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-            if (inString && line[i + 1] === '"') {
-                i++;
-            } else {
-                inString = !inString;
-            }
-        } else if (ch === "'" && !inString) {
-            return { code: line.slice(0, i).trimEnd(), comment: line.slice(i) };
-        }
-    }
-    return { code: line, comment: null };
-}
-
 function normalizeComment(comment: string): string {
-    if (comment.length <= 1) return comment;
+    // Only apostrophe comments; REM comments are left as written.
+    if (!isSingleQuote(comment[0]) || comment.length <= 1) return comment;
     const after = comment.slice(1);
     if (["!", "#", "'", "=", "-"].includes(after[0])) return comment;
     if (after.startsWith(" ")) return comment;
-    return "' " + after;
+    return comment[0] + " " + after;
 }
 
-function applyKeywordCasing(code: string): string {
-    let result = "";
-    let i = 0;
-    while (i < code.length) {
-        if (code[i] === '"') {
-            // Inside a string literal — copy verbatim without keyword replacement
-            result += '"';
-            i++;
-            while (i < code.length) {
-                if (code[i] === '"') {
-                    result += '"';
-                    i++;
-                    if (code[i] === '"') { result += '"'; i++; } // escaped ""
-                    else break;
-                } else {
-                    result += code[i++];
-                }
-            }
-        } else {
-            // Outside a string — find next " and apply keyword casing to this segment
-            let j = i;
-            while (j < code.length && code[j] !== '"') j++;
-            result += code.slice(i, j).replace(/\b([A-Za-z][A-Za-z0-9_]*)\b/g, (match) => {
-                return VB_KEYWORDS[match.toLowerCase()] ?? match;
-            });
-            i = j;
-        }
-    }
-    return result;
+function applyKeywordCasing(token: Token): Token {
+    if (token.kind !== "code") return token;
+    const text = token.text.replace(/\b([A-Za-z][A-Za-z0-9_]*)\b/g, (match) => {
+        return VB_KEYWORDS[match.toLowerCase()] ?? match;
+    });
+    return { ...token, text };
 }
 
-function countNetParens(code: string): number {
+function countNetParens(tokens: Token[]): number {
     let depth = 0;
-    let inString = false;
-    for (let i = 0; i < code.length; i++) {
-        const ch = code[i];
-        if (ch === '"') {
-            if (inString && code[i + 1] === '"') { i++; }
-            else { inString = !inString; }
-        } else if (!inString) {
-            if (ch === '(') depth++;
-            else if (ch === ')') depth--;
+    for (const t of tokens) {
+        if (t.kind !== "code") continue;
+        for (const ch of t.text) {
+            if (ch === "(") depth++;
+            else if (ch === ")") depth--;
         }
     }
     return depth;

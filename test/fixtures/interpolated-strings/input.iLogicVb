@@ -1,0 +1,2 @@
+dim s = $"{d("date")} next {x} it's"
+dim t = $"{{not a hole}} if then" 'c

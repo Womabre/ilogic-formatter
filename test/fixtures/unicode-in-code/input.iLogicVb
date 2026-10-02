@@ -1,0 +1,6 @@
+x = a – b
+If x ≠ c Then
+y = “hello” ‘note
+z = ＂a＂
+End If
+w = 5 × 2 ‘‘ “kept” in comment

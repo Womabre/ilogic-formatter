@@ -1,0 +1,10 @@
+sub main()
+dim sql = "SELECT *  
+   FROM  t   
+
+
+  WHERE x = 'a'" & suffix
+if a then
+b()
+end if
+end sub

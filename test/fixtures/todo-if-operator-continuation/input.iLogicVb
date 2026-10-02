@@ -1,0 +1,5 @@
+Sub Main()
+Dim x = Foo(a,
+If(b, c, d))
+y = 1
+End Sub

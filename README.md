@@ -29,6 +29,8 @@ All settings are under `ilogicFormatter.*` in VS Code settings:
 | `blankLineAfterBlock` | `true`  | Blank line after End Sub/Function |
 | `normalizeKeywords`   | `true`  | Normalize VB keyword casing       |
 | `normalizeComments`   | `true`  | Space after comment apostrophe    |
+| `normalizeUnicode`    | `true`  | ASCII for lookalike characters in code (strings and comments untouched) |
+| `formatVbFiles`       | `true`  | Also format `.vb` files           |
 
 Example `settings.json`:
 
@@ -55,6 +57,7 @@ Example `settings.json`:
 ```bash
 npm install
 npm run compile
+bun test
 # Press F5 in VS Code to launch Extension Development Host
 ```
 
@@ -63,3 +66,5 @@ npm run compile
 - iLogic rules use a VB.NET dialect with Inventor-specific globals (`iProperties`, `Parameter`, etc.) — these are treated as identifiers and their casing is left unchanged
 - Single-line `If x Then DoSomething` is detected and not indented
 - `ElseIf`, `Else`, `Catch`, `Finally` correctly dedent then re-indent
+- String literals and comments are never changed: keyword casing and Unicode replacement only touch code
+- Formatter tests live in `test/fixtures/<name>/` as `input.iLogicVb` + `expected.iLogicVb`; a `todo.md` marks a known bug

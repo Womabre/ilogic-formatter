@@ -6,3 +6,4 @@ node_modules/
 **/*.map
 *.vsix
 .DS_Store
+test/

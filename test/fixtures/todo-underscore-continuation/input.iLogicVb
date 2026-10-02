@@ -1,0 +1,3 @@
+Dim s As String = "a" & _
+"b" & _
+"c"

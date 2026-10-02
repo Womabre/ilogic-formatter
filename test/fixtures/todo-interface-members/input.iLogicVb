@@ -1,0 +1,7 @@
+Interface IFoo
+Sub DoIt()
+Function GetIt() As Integer
+End Interface
+Sub Main()
+x = 1
+End Sub

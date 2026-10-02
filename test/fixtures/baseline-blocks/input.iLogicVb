@@ -1,0 +1,56 @@
+option strict on
+imports System.IO
+
+'Rule entry point
+sub main()
+dim count as integer = 0
+for each oOcc as ComponentOccurrence in oDoc.ComponentDefinition.Occurrences
+if oOcc.Suppressed then continue for
+count += 1
+next
+
+
+
+select case count
+case 0
+logger.info("none")
+case 1, 2
+if count = 1 then
+logger.info("one")
+elseif count = 2 then
+logger.info("two")
+else
+logger.warn("?")
+end if
+case else
+try
+DoWork(count,
+"label")
+catch ex as exception
+logger.error(ex.Message)
+finally
+count = 0
+end try
+end select
+do while count < 3
+count += 1
+loop
+with oDoc
+.Update()
+end with
+using sw as new StreamWriter("x.txt")
+sw.WriteLine("Done") ' trailing comment
+end using
+end sub
+function Area(w as double, h as double) as double
+return w * h
+end function
+private readonly property Width as double
+public property Height as double
+get
+return _h
+end get
+set(value as double)
+_h = value
+end set
+end property

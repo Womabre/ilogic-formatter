@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "Womabre",
   "icon": "icon.png",
   "repository": {
@@ -103,7 +103,12 @@
         "ilogicFormatter.normalizeUnicode": {
           "type": "boolean",
           "default": true,
-          "description": "Replace lookalike Unicode characters with their ASCII equivalents (e.g. en dash → hyphen, curly quotes → straight quotes)."
+          "description": "Replace lookalike Unicode characters in code with their ASCII equivalents (e.g. en dash → hyphen, curly quote delimiters → straight quotes). String literals and comment text are never changed."
+        },
+        "ilogicFormatter.formatVbFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also format .vb files. Turn off if you work on regular VB.NET projects and want another formatter for them."
         }
       }
     }
@@ -112,6 +117,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "test": "bun test",
     "package": "npm run compile && vsce package --out ilogic-formatter.vsix"
   },
   "devDependencies": {

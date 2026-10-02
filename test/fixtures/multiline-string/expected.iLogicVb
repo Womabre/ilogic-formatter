@@ -1,0 +1,10 @@
+Sub main()
+    Dim sql = "SELECT *  
+   FROM  t   
+
+
+  WHERE x = 'a'" & suffix
+    If a Then
+        b()
+    End If
+End Sub

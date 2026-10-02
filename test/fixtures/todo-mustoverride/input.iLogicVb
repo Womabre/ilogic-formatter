@@ -1,0 +1,6 @@
+MustInherit Class A
+MustOverride Sub Foo()
+Sub Bar()
+x = 1
+End Sub
+End Class

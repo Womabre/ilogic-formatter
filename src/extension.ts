@@ -2,9 +2,11 @@ import * as vscode from "vscode";
 import { format, FormatOptions } from "./formatter";
 
 export function activate(context: vscode.ExtensionContext) {
-    const selector = [
+    const iLogicSelector = [
         { language: "ilogicvb" },
         { pattern: "**/*.iLogicVb" },
+    ];
+    const vbSelector = [
         { language: "vb" },
         { pattern: "**/*.vb" },
     ];
@@ -22,8 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
         };
     }
 
-    // Register formatter for .iLogicVb and .vb files
-    const provider = vscode.languages.registerDocumentFormattingEditProvider(selector, {
+    const documentProvider: vscode.DocumentFormattingEditProvider = {
         provideDocumentFormattingEdits(document) {
             const text = document.getText();
             const formatted = format(text, getOptions());
@@ -34,19 +35,48 @@ export function activate(context: vscode.ExtensionContext) {
             );
             return [vscode.TextEdit.replace(fullRange, formatted)];
         },
-    });
+    };
 
     // Also support range formatting (format selection)
-    const rangeProvider = vscode.languages.registerDocumentRangeFormattingEditProvider(selector, {
+    const rangeProvider: vscode.DocumentRangeFormattingEditProvider = {
         provideDocumentRangeFormattingEdits(document, range) {
             const text = document.getText(range);
             const formatted = format(text, getOptions());
             if (formatted === text) return [];
             return [vscode.TextEdit.replace(range, formatted)];
         },
-    });
+    };
 
-    context.subscriptions.push(provider, rangeProvider);
+    function register(selector: vscode.DocumentSelector): vscode.Disposable {
+        return vscode.Disposable.from(
+            vscode.languages.registerDocumentFormattingEditProvider(selector, documentProvider),
+            vscode.languages.registerDocumentRangeFormattingEditProvider(selector, rangeProvider)
+        );
+    }
+
+    // .iLogicVb files are always formatted
+    context.subscriptions.push(register(iLogicSelector));
+
+    // .vb files are formatted unless ilogicFormatter.formatVbFiles is false.
+    // Registered only while enabled, so VS Code does not list this extension
+    // as a .vb formatter once the user opts out.
+    let vbRegistration: vscode.Disposable | undefined;
+    function updateVbRegistration() {
+        const enabled = vscode.workspace.getConfiguration("ilogicFormatter").get("formatVbFiles", true);
+        if (enabled && !vbRegistration) {
+            vbRegistration = register(vbSelector);
+        } else if (!enabled && vbRegistration) {
+            vbRegistration.dispose();
+            vbRegistration = undefined;
+        }
+    }
+    updateVbRegistration();
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration("ilogicFormatter.formatVbFiles")) updateVbRegistration();
+        }),
+        { dispose: () => vbRegistration?.dispose() }
+    );
 
     // Register a manual format command
     const command = vscode.commands.registerCommand("ilogicFormatter.formatDocument", () => {

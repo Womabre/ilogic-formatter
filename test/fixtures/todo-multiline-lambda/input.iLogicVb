@@ -1,0 +1,6 @@
+Sub Main()
+Dim f = Function(x As Integer)
+Return x * 2
+End Function
+y = 1
+End Sub

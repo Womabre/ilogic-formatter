@@ -24,8 +24,8 @@ All settings are under `ilogicFormatter.*` in VS Code settings:
 
 | Setting               | Default | Description                       |
 | --------------------- | ------- | --------------------------------- |
-| `indentSize`          | `4`     | Spaces per indent level           |
-| `useTabs`             | `false` | Use tabs instead of spaces        |
+| `indentSize`          | `null`  | Spaces per indent level; `null` follows the editor's Tab Size |
+| `useTabs`             | `null`  | Tabs instead of spaces; `null` follows the editor's Insert Spaces |
 | `maxBlankLines`       | `1`     | Maximum consecutive blank lines   |
 | `blankLineAfterBlock` | `true`  | Blank line after End Sub/Function |
 | `normalizeKeywords`   | `true`  | Normalize VB keyword casing       |

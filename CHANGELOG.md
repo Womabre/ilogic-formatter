@@ -5,6 +5,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-03
+
+### Changed
+
+- `indentSize` and `useTabs` default to `null`, which follows the editor's Tab Size and Insert Spaces for the file (including per-language settings and indentation detection). Set them to a number or boolean to override. With VS Code's defaults this still gives 4 spaces.
+- The extension activates when an iLogic or VB file is opened, instead of scanning the whole workspace for `*.iLogicVb` and `*.vb` files at startup.
+
+### Fixed
+
+- **iLogic: Format iLogic Rule** formats with this formatter. Before, it ran Format Document, which uses whichever formatter is the default for the file.
+- `indentSize` and `maxBlankLines` have a minimum and maximum, and out-of-range values in settings.json are clamped (indent 1-16, blank lines 0-100).
+- Formatting an unchanged CRLF file returns no edits.
+
 ## [1.2.3] - 2026-10-03
 
 ### Added

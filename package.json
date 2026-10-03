@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "publisher": "Womabre",
   "icon": "icon.png",
   "repository": {
@@ -130,6 +130,27 @@
           "default": true,
           "description": "Show warnings for unbalanced blocks: End If without If, a Sub or If that is never closed, Else or Case outside its block.",
           "scope": "language-overridable"
+        },
+        "ilogicFormatter.disabledHints": {
+          "type": "array",
+          "default": [],
+          "scope": "language-overridable",
+          "items": {
+            "type": "string",
+            "enum": [
+              "interpolation",
+              "empty-catch",
+              "msgbox",
+              "option-strict"
+            ],
+            "enumDescriptions": [
+              "$\"...\" strings (not supported in iLogic)",
+              "Catch blocks that discard the exception",
+              "MsgBox / MessageBox.Show used for messages instead of Logger",
+              "Rules without Option Strict On"
+            ]
+          },
+          "description": "iLogic convention hints to turn off (shown for .iLogicVb files)."
         }
       }
     },

@@ -753,7 +753,7 @@ function netParens(text: string): number {
  * literals (#12:00#) and in directives are not separators. An If statement
  * takes the rest of the line: "If x Then a : b" is one single-line If.
  */
-function splitStatements(norm: string): string[] {
+export function splitStatements(norm: string): string[] {
     if (norm.startsWith("#")) return norm === "" ? [] : [norm];
     const statements: string[] = [];
     let depth = 0;

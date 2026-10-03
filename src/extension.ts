@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsInString } from "./formatter";
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
 import { hoverAt, memberMarkdown, objectMarkdown, suggestionsFor } from "./completion";
+import { lint, LintRule } from "./lint";
 
 const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
     class: vscode.SymbolKind.Class,
@@ -242,7 +243,30 @@ export function activate(context: vscode.ExtensionContext) {
         return diagnostic;
     }
 
+    // Convention hints (.iLogicVb only: $"..." is valid in ordinary VB.NET projects)
+    const hints = vscode.languages.createDiagnosticCollection("ilogic-conventions");
+
+    function isILogic(document: vscode.TextDocument): boolean {
+        return document.languageId === "ilogicvb" || /\.ilogicvb$/i.test(document.fileName);
+    }
+
+    function updateHints(document: vscode.TextDocument) {
+        if (!isILogic(document)) {
+            hints.delete(document.uri);
+            return;
+        }
+        const disabled = vscode.workspace.getConfiguration("ilogicFormatter", document).get<LintRule[]>("disabledHints", []);
+        hints.set(document.uri, lint(document.getText(), disabled).map((p) => {
+            const diagnostic = new vscode.Diagnostic(new vscode.Range(p.line, p.start, p.line, p.end), p.message,
+                p.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Information);
+            diagnostic.source = "iLogic conventions";
+            diagnostic.code = p.rule;
+            return diagnostic;
+        }));
+    }
+
     function updateDiagnostics(document: vscode.TextDocument) {
+        updateHints(document);
         if (!shouldCheck(document)) {
             diagnostics.delete(document.uri);
             return;
@@ -270,11 +294,63 @@ export function activate(context: vscode.ExtensionContext) {
             clearTimeout(pending.get(document.uri.toString()));
             pending.delete(document.uri.toString());
             diagnostics.delete(document.uri);
+            hints.delete(document.uri);
         }),
+        hints,
         vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration("ilogicFormatter")) vscode.workspace.textDocuments.forEach(updateDiagnostics);
         }),
         { dispose: () => pending.forEach((timer) => clearTimeout(timer)) }
+    );
+
+    // Quick fixes for convention hints, plus "don't show this hint"
+    const codeActions: vscode.CodeActionProvider = {
+        provideCodeActions(document, _range, context) {
+            const actions: vscode.CodeAction[] = [];
+            for (const diagnostic of context.diagnostics) {
+                if (diagnostic.source !== "iLogic conventions") continue;
+                const rule = String(diagnostic.code) as LintRule;
+                if (rule === "option-strict") {
+                    const text = document.getText();
+                    const missing = ["Option Strict On", "Option Explicit On"]
+                        .filter((o) => !new RegExp("^\\s*" + o.replace(/ On$/, "") + "\\s+On\\b", "im").test(text));
+                    const fix = new vscode.CodeAction("Add " + missing.join(" and "), vscode.CodeActionKind.QuickFix);
+                    fix.edit = new vscode.WorkspaceEdit();
+                    fix.edit.insert(document.uri, new vscode.Position(0, 0), missing.join("\n") + "\n");
+                    fix.diagnostics = [diagnostic];
+                    fix.isPreferred = true;
+                    actions.push(fix);
+                }
+                if (rule === "empty-catch") {
+                    const line = document.lineAt(diagnostic.range.start.line);
+                    const m = /^(\s*)Catch(?:\s+(\w+)\s+As\s+[\w.]+)?\s*(?:'.*)?$/i.exec(line.text);
+                    if (m) { // only a Catch on its own line; one-line Try...End Try is left to the user
+                        const variable = m[2] ?? "ex";
+                        const unit = m[1].includes("\t") ? "\t" : "    ";
+                        const fix = new vscode.CodeAction("Log the exception", vscode.CodeActionKind.QuickFix);
+                        fix.edit = new vscode.WorkspaceEdit();
+                        if (!m[2]) fix.edit.replace(document.uri, new vscode.Range(line.lineNumber, m[1].length, line.lineNumber, m[1].length + 5), "Catch ex As Exception");
+                        fix.edit.insert(document.uri, new vscode.Position(line.lineNumber + 1, 0),
+                            `${m[1]}${unit}Logger.Error("Failed: " & ${variable}.Message)\n`);
+                        fix.diagnostics = [diagnostic];
+                        fix.isPreferred = true;
+                        actions.push(fix);
+                    }
+                }
+                const off = new vscode.CodeAction(`Don't show "${rule}" hints in this workspace`, vscode.CodeActionKind.QuickFix);
+                off.command = { command: "ilogicFormatter.disableHint", title: off.title, arguments: [rule] };
+                actions.push(off);
+            }
+            return actions;
+        },
+    };
+    context.subscriptions.push(
+        vscode.languages.registerCodeActionsProvider(iLogicSelector, codeActions, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
+        vscode.commands.registerCommand("ilogicFormatter.disableHint", async (rule: LintRule) => {
+            const config = vscode.workspace.getConfiguration("ilogicFormatter");
+            const current = config.get<LintRule[]>("disabledHints", []);
+            if (!current.includes(rule)) await config.update("disabledHints", [...current, rule], vscode.ConfigurationTarget.Workspace);
+        })
     );
 
     // "iLogic: Format iLogic Rule" always uses this formatter, whichever

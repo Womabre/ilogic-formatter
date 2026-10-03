@@ -5,6 +5,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-03
+
+### Added
+
+- iLogic convention hints for `.iLogicVb` files (source "iLogic conventions"):
+  - **interpolation** (warning): `$"..."` strings, which iLogic does not support.
+  - **empty-catch** (warning): a `Catch` with nothing in it, including the one-line `Try : ... : Catch : End Try` form. A comment does not count as handling.
+  - **msgbox** (information): `MsgBox(...)` or `MessageBox.Show(...)` used as a statement, i.e. as a notification. Message boxes whose result is used (`If MessageBox.Show(...) = ...`) are decisions and are not flagged.
+  - **option-strict** (information): no `Option Strict On` in the rule.
+- Quick fixes: *Add Option Strict On and Option Explicit On*; *Log the exception* (turns an empty `Catch` on its own line into `Catch ex As Exception` with a `Logger.Error` line); and *Don't show "<rule>" hints in this workspace*.
+- `ilogicFormatter.disabledHints` setting to turn individual hints off.
+
 ## [1.8.0] - 2026-10-03
 
 ### Added

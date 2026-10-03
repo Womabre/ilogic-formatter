@@ -1,0 +1,20 @@
+{
+    // F5: compiles, then opens a second VS Code window ("Extension Development
+    // Host") on the sample/ folder with this extension loaded and all other
+    // extensions disabled, so no other VB formatter interferes.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Extension (sample folder)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--disable-extensions",
+                "${workspaceFolder}/sample"
+            ],
+            "outFiles": ["${workspaceFolder}/out/**/*.js"],
+            "preLaunchTask": "compile"
+        }
+    ]
+}

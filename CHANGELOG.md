@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Development setup: <kbd>F5</kbd> compiles and opens an Extension Development Host on `sample/` with other extensions disabled, and README has a checklist for the manual check. `.vscode/` and `sample/` are not packaged.
+
 ## [1.2.2] - 2026-10-03
 
 ### Fixed

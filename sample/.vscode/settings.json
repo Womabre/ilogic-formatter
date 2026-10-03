@@ -1,0 +1,5 @@
+{
+    "[ilogicvb]": { "editor.defaultFormatter": "Womabre.ilogic-formatter" },
+    "[vb]": { "editor.defaultFormatter": "Womabre.ilogic-formatter" },
+    "editor.formatOnPaste": true
+}

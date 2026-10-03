@@ -1,0 +1,31 @@
+' Sample rule for the F5 check: press Shift+Alt+F and compare with the
+' checklist in README.md (Testing in VS Code). Ctrl+Z brings the mess back.
+option strict on
+imports System.Linq
+
+sub main()
+dim area as double = 4.2
+' Strings keep their text: inch mark, en dash and m² stay as written
+iProperties.Value("Custom", "Size") = "Pipe 1/2″ – " & area & " m²"
+if area > 4 then logger.info("big")
+select case area
+case is > 10
+logger.info("huge")
+case else
+try : DoWork(area) : catch : end try
+end select
+dim parts = new list(of string) from {"a", "b"}
+parts.ForEach(sub(p)
+logger.info(p)
+end sub)
+dim msg = "Area: " & _
+area.ToString()
+if msg.Length > 0 andalso
+area > 1 then
+logger.info(msg)
+end if
+end sub
+
+<DebuggerStepThrough()> private sub DoWork(x as double)
+logger.trace(x.ToString())
+end sub

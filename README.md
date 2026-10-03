@@ -62,6 +62,21 @@ bun test
 # Press F5 in VS Code to launch Extension Development Host
 ```
 
+### Testing in VS Code
+
+Open this folder in VS Code and press <kbd>F5</kbd>. It compiles the extension and opens a second window (the Extension Development Host) on `sample/`, with only this extension loaded. Then check:
+
+1. **Format Document:** open `Sample Rule.iLogicVb` and press <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>.
+   - Keywords are cased: `Option Strict On`, `Sub main()`, `List(Of String)`.
+   - The string `"Pipe 1/2″ – " & area & " m²"` is unchanged.
+   - `Try : DoWork(area) : Catch : End Try` stays on one line, at the `Case Else` body level.
+   - The `Sub(p)` lambda body is indented, and `End Sub)` lines up with `parts.ForEach`.
+   - The `_` and `AndAlso` continuation lines are indented one extra level.
+   - `<DebuggerStepThrough()> Private Sub DoWork` indents its body.
+2. **Format Selection:** undo, select the lines between `Sub main()` and `End Sub`, and press <kbd>Ctrl</kbd>+<kbd>K</kbd> <kbd>Ctrl</kbd>+<kbd>F</kbd>. The lines get the indentation of the code around them, and nothing outside the selection changes.
+3. **Format on paste:** paste a few unindented lines inside `DoWork`. They land at the body indentation.
+4. **`.vb` opt-out:** `Sample.vb` formats by default. Set `ilogicFormatter.formatVbFiles` to `false` and Format Document no longer offers this formatter for it.
+
 ## Notes
 
 - iLogic rules use a VB.NET dialect with Inventor-specific globals (`iProperties`, `Parameter`, etc.) — these are treated as identifiers and their casing is left unchanged

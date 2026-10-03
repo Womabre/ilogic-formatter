@@ -11,3 +11,4 @@ test/
 sample/**
 scripts/
 *.code-workspace
+out/cli.js

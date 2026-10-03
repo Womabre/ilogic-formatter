@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "publisher": "Womabre",
   "icon": "icon.png",
   "repository": {
@@ -172,12 +172,16 @@
     "watch": "tsc -watch -p ./",
     "test": "bun test",
     "package": "npm run compile && vsce package --out ilogic-formatter.vsix",
-    "grammar": "bun scripts/build-grammar.ts"
+    "grammar": "bun scripts/build-grammar.ts",
+    "format": "bun src/cli.ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.22.0",
     "typescript": "^5.3.0"
+  },
+  "bin": {
+    "ilogic-format": "./out/cli.js"
   }
 }

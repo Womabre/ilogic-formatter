@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-03
+
+### Added
+
+- `ilogic-format` command-line tool, using the same formatter, block checks and convention hints as the extension: print a formatted rule, `--check` (list unformatted files, exit 1), `--write` (format in place, keeping CRLF line endings and the BOM), `--lint` (report problems, exit 1), `--stdin`, `--json`, and the formatting options as flags. Directories are searched for `*.iLogicVb` files (`--include-vb` adds `*.vb`). Exit code 2 for usage and file errors. Run with `bun src/cli.ts` or `node out/cli.js`; not included in the VS Code package.
+
 ## [1.9.0] - 2026-10-03
 
 ### Added

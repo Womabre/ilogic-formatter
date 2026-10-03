@@ -14,3 +14,6 @@ scripts/
 out/cli.js
 .github/**
 RELEASING.md
+bun.lock
+bun.lockb
+package-lock.json

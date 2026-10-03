@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Lockfiles are no longer packaged. The 1.10.0 GitHub release asset contained a `bun.lock` created by `bun install` on the CI runner (the Open VSX copy did not).
+
 ### Changed
 
 - Marketplace listing: description, license, issue and homepage links, and the Linters and Snippets categories.

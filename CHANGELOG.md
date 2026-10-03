@@ -5,9 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-03
+
 ### Added
 
 - Development setup: <kbd>F5</kbd> compiles and opens an Extension Development Host on `sample/` with other extensions disabled, and README has a checklist for the manual check. `.vscode/` and `sample/` are not packaged.
+
+### Fixed
+
+- Prime marks in code (`′` `″`) are no longer turned into `'` and `"`. A stray `5″` became `5"`, which opened a string that swallowed the rest of the file, so nothing after it was formatted. They are now left as written for the compiler to flag. Primes in strings and comments were already left alone.
 
 ## [1.2.2] - 2026-10-03
 

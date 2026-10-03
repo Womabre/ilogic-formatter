@@ -34,10 +34,11 @@ const UNICODE_REPLACEMENTS: [string, string, string][] = [
     ["–", "-", "en dash"],
     ["—", "-", "em dash"],
     ["−", "-", "minus sign"],
-    // Quote lookalikes VB does not treat as delimiters
+    // Quote lookalikes VB does not treat as delimiters. Primes (′ ″) are not
+    // listed: they are inch/foot marks, never paired quotes, and turning one
+    // into " or ' opens a string or comment that swallows the rest of the line
+    // or file. Left as written, the compiler points at them instead.
     ["„", "\"", "double low-9 quotation mark"],
-    ["′", "'", "prime"],
-    ["″", "\"", "double prime"],
     // Spaces → regular space
     [" ", " ", "non-breaking space"],
     [" ", " ", "narrow no-break space"],

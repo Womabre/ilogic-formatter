@@ -1,0 +1,21 @@
+Class Tool
+<DebuggerStepThrough()> Public Sub X()
+y = 1
+End Sub
+<Obsolete("use Y"), CLSCompliant(False)> Private Function F(a As Integer) As Integer
+Return a
+End Function
+<Browsable(False)> <Category("x")> Public Property P As Integer
+<DefaultValue(1)> Public Property Q As Integer
+Get
+Return 1
+End Get
+Set(value As Integer)
+End Set
+End Property
+<Serializable> Public Class Inner
+Sub Run()
+End Sub
+End Class
+End Class
+<Assembly: AssemblyTitle("Tool")>

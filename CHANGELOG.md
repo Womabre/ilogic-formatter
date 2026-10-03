@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-03
+
+### Fixed
+
+- A declaration with attributes on the same line (`<DebuggerStepThrough()> Public Sub X()`, `<A> <B> Public Property P`, `<Serializable> Public Class C`) opens its block. Before, the attributes hid the keyword, so the body was not indented and its `End Sub` closed the enclosing block. The colon in `<Assembly: ...>` is not read as a statement separator.
+
 ## [1.2.1] - 2026-10-03
 
 ### Fixed

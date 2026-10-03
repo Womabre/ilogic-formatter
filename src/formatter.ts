@@ -392,8 +392,37 @@ const BLOCK_OPENERS = new Set([
 // Members that have no body when declared MustOverride or inside an Interface
 const MEMBER_KEYWORDS = new Set(["sub", "function", "property"]);
 
+/**
+ * Length of the attribute blocks at the start of a statement ("<A(x)> <B> "),
+ * or 0. A block left open at the end of the line (a multi-line attribute)
+ * is not counted, so that line still reads as an attribute line.
+ */
+function attributePrefixLength(text: string): number {
+    let k = 0;
+    while (text[k] === "<") {
+        let depth = 0;
+        let end = -1;
+        for (let j = k + 1; j < text.length; j++) {
+            const ch = text[j];
+            if (ch === "(") depth++;
+            else if (ch === ")") depth--;
+            else if (ch === ">" && depth <= 0) { end = j; break; }
+        }
+        if (end < 0) return k;
+        k = end + 1;
+        while (text[k] === " " || text[k] === "\t") k++;
+    }
+    return k;
+}
+
+/** The statement without its leading attributes: "<Obsolete> Public Sub X()" → "Public Sub X()". */
+function stripAttributes(text: string): string {
+    return text.slice(attributePrefixLength(text));
+}
+
 /** The statement's keyword: its first word that isn't a modifier (e.g. "class" for "MustInherit Class A"). */
-function blockKeyword(norm: string): string {
+function blockKeyword(statement: string): string {
+    const norm = stripAttributes(statement);
     const words = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
     return words.find((w) => !MODIFIERS.has(w)) ?? words[0] ?? "";
 }
@@ -411,7 +440,9 @@ function innermostBlock(stack: StackEntry[]): string | null {
  * or null at file level. Needed because a member signature inside an
  * Interface looks exactly like the first line of a Sub/Function block.
  */
-function classifyLine(norm: string, nextNorm: string | null = null, container: string | null = null): LineClass {
+function classifyLine(statement: string, nextNorm: string | null = null, container: string | null = null): LineClass {
+    // Attributes in front of a declaration don't change what it is
+    const norm = stripAttributes(statement);
     // `norm` has every string literal blanked to "", so words inside strings
     // (e.g. "Do you want..." → "do") can never be read as keywords.
     // Extract identifier tokens, stripping parens/operators (e.g. "Set(value" → "set")
@@ -526,7 +557,8 @@ function splitStatements(norm: string): string[] {
     let depth = 0;
     let inDate = false;
     let start = 0;
-    for (let k = 0; k < norm.length; k++) {
+    // Not inside leading attributes: "<Assembly: AssemblyTitle(...)>" is one statement
+    for (let k = attributePrefixLength(norm); k < norm.length; k++) {
         const ch = norm[k];
         // "#" opens a date literal unless it is a type character ("x#")
         if (ch === "#" && (inDate || !/\w/.test(norm[k - 1] ?? ""))) inDate = !inDate;

@@ -9,6 +9,7 @@ A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` fil
 - **Blank line normalization** — Collapses multiple consecutive blank lines and optionally inserts a blank line after `End Sub` / `End Function`
 - **Comment formatting** — Ensures a space after the comment apostrophe (`'comment` → `' comment`)
 - **Indent as you type** — Enter formats the finished line and puts the cursor at the right indent for the next one (`.iLogicVb` files; uses `editor.formatOnType`)
+- **Snippets** — `rule`, `app`, `sub`, `func`, `try`, `log`, `guard`, `region`, `iprop`, `facearea`: iLogic patterns with Option Strict, the ThisServer fallback, XML doc comments and Logger instead of MsgBox
 - **Outline and folding** — Subs, Functions, Properties and types in the Outline view, breadcrumbs and Go to Symbol; folding for every block, `Case`/`Else` section, `#Region`, comment run and `Imports` run
 - **Block warnings** — flags `End If` without `If`, a `Sub` or `If` that is never closed, and `Else`/`Case`/`Catch` outside their block, as you type
 - **Syntax highlighting** — keywords, types, constants, strings, comments and numbers in `.iLogicVb` files. The keyword lists are generated from the same list the formatter uses for casing (`bun run grammar`)

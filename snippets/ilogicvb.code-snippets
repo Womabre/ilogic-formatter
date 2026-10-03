@@ -1,0 +1,148 @@
+{
+  "iLogic rule": {
+    "prefix": [
+      "rule",
+      "ilogic"
+    ],
+    "description": "Rule skeleton: Option Strict/Explicit, #Region \"Main\", ThisApplication -> ThisServer fallback, start log line.",
+    "body": [
+      "Option Strict On",
+      "Option Explicit On",
+      "",
+      "#Region \"Main\"",
+      "Sub Main()",
+      "\tDim oApp As Application = If(ThisApplication IsNot Nothing, ThisApplication, ThisServer)",
+      "\tIf oApp Is Nothing Then",
+      "\t\tLogger.Fatal(\"No Application context available. Aborting.\")",
+      "\t\tReturn",
+      "\tEnd If",
+      "",
+      "\tLogger.Info(DateTime.Now & \" - \" & ThisDoc.PathAndFileName(True) & \" - ${1:Rule} started.\")",
+      "\t$0",
+      "End Sub",
+      "",
+      "#End Region"
+    ]
+  },
+  "Application with Design Automation fallback": {
+    "prefix": [
+      "app",
+      "thisserver"
+    ],
+    "description": "Resolve the Application: ThisApplication, or ThisServer where ThisApplication is absent (Design Automation).",
+    "body": [
+      "Dim ${1:oApp} As Application = If(ThisApplication IsNot Nothing, ThisApplication, ThisServer)",
+      "If ${1:oApp} Is Nothing Then",
+      "\tLogger.Fatal(\"No Application context available. Aborting.\")",
+      "\tReturn",
+      "End If",
+      "$0"
+    ]
+  },
+  "Sub with doc comment": {
+    "prefix": [
+      "sub"
+    ],
+    "description": "Sub with XML doc comment (summary and param; no returns for a Sub).",
+    "body": [
+      "''' <summary>",
+      "''' ${2:What this Sub does.}",
+      "''' </summary>",
+      "''' <param name=\"${3:Name}\">${4:Description.}</param>",
+      "Sub ${1:DoWork}(${3:Name} As ${5:String})",
+      "\t$0",
+      "End Sub"
+    ]
+  },
+  "Function with doc comment": {
+    "prefix": [
+      "func",
+      "function"
+    ],
+    "description": "Function with XML doc comment (summary, param, returns).",
+    "body": [
+      "''' <summary>",
+      "''' ${2:What this Function computes.}",
+      "''' </summary>",
+      "''' <param name=\"${3:Name}\">${4:Description.}</param>",
+      "''' <returns>${6:What is returned.}</returns>",
+      "Function ${1:GetValue}(${3:Name} As ${5:String}) As ${7:String}",
+      "\t$0",
+      "End Function"
+    ]
+  },
+  "Try / Catch with logging": {
+    "prefix": [
+      "try"
+    ],
+    "description": "Try/Catch that always logs the exception (never an empty Catch).",
+    "body": [
+      "Try",
+      "\t${1:' risky operation}",
+      "Catch ex As Exception",
+      "\tLogger.Error(\"${2:Operation} failed: \" & ex.Message)",
+      "End Try",
+      "$0"
+    ]
+  },
+  "Logger line": {
+    "prefix": [
+      "log",
+      "logger"
+    ],
+    "description": "Logger call with timestamp and document path, for log correlation.",
+    "body": [
+      "Logger.${1|Info,Warn,Error,Debug,Trace,Fatal|}(DateTime.Now & \" - \" & ThisDoc.PathAndFileName(True) & \" - ${2:message}\")$0"
+    ]
+  },
+  "Null guard": {
+    "prefix": [
+      "guard",
+      "isnothing"
+    ],
+    "description": "Guard an Inventor API object against Nothing before use.",
+    "body": [
+      "If ${1:oDoc} Is Nothing Then",
+      "\tLogger.${2|Error,Fatal,Warn|}(\"${1:oDoc} is Nothing. Aborting.\")",
+      "\tReturn",
+      "End If",
+      "$0"
+    ]
+  },
+  "Region": {
+    "prefix": [
+      "region",
+      "#region"
+    ],
+    "description": "#Region block.",
+    "body": [
+      "#Region \"${1|Helpers,Main,Constants,Imports|}\"",
+      "$0",
+      "#End Region"
+    ]
+  },
+  "iProperty value": {
+    "prefix": [
+      "iprop",
+      "iproperty"
+    ],
+    "description": "iProperties.Value(setName, propertyName).",
+    "body": [
+      "iProperties.Value(\"${1|Project,Custom|}\", \"${2:Part Number}\")$0"
+    ]
+  },
+  "Body surface area": {
+    "prefix": [
+      "facearea",
+      "surfacearea"
+    ],
+    "description": "Surface area of a SurfaceBody by summing face areas (SurfaceBody.Evaluator is late-bound and fails under Option Strict On).",
+    "body": [
+      "Dim ${2:totalArea} As Double = 0.0",
+      "For Each bodyFace As Face In ${1:body}.Faces",
+      "\t${2:totalArea} += CDbl(DirectCast(bodyFace.Evaluator, SurfaceEvaluator).Area)",
+      "Next",
+      "$0"
+    ]
+  }
+}

@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-03
+
+### Added
+
+- Snippets for `.iLogicVb` files that follow the iLogic coding conventions: `rule` (Option Strict/Explicit, `#Region "Main"`, the ThisApplication -> ThisServer fallback, a start log line), `app`, `sub` and `func` (with XML doc comments), `try` (Catch always logs), `log` (timestamp and document path), `guard` (null check), `region`, `iprop`, and `facearea` (surface area through face evaluators, since `SurfaceBody.Evaluator` fails under Option Strict On). Every snippet is already formatted, so formatting right after inserting one changes nothing.
+
 ## [1.6.0] - 2026-10-03
 
 ### Added

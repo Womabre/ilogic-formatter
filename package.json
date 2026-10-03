@@ -1,27 +1,39 @@
 {
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
-  "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
+  "description": "Formatter, outline, completion and convention hints for Autodesk Inventor iLogic rules (.iLogicVb)",
   "version": "1.10.0",
   "publisher": "Womabre",
+  "license": "MIT",
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Womabre/iLogic-Formatter"
+    "url": "https://github.com/Womabre/ilogic-formatter.git"
   },
+  "bugs": {
+    "url": "https://github.com/Womabre/ilogic-formatter/issues"
+  },
+  "homepage": "https://github.com/Womabre/ilogic-formatter#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Formatters",
-    "Programming Languages"
+    "Programming Languages",
+    "Linters",
+    "Snippets"
   ],
   "keywords": [
     "iLogic",
     "Inventor",
     "Autodesk",
     "VB.NET",
-    "formatter"
+    "formatter",
+    "iLogicVb",
+    "Autodesk Inventor",
+    "CAD",
+    "snippets",
+    "linter"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",

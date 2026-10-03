@@ -1,0 +1,24 @@
+# Tests and packages the extension on every push and pull request.
+# The .vsix is attached to the run as an artifact.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run compile
+      - run: bun test
+      - name: Package
+        run: bunx vsce package --out ilogic-formatter.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ilogic-formatter-vsix
+          path: ilogic-formatter.vsix

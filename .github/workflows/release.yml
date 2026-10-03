@@ -1,0 +1,46 @@
+# Release on a version tag (v1.2.3): test, package, create a GitHub release
+# with the .vsix attached, and publish to the VS Code Marketplace and Open VSX
+# when their tokens are configured as repository secrets (VSCE_PAT, OVSX_PAT).
+# Without a token that publish step is skipped, so tagging is safe either way.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Tag matches package.json version
+        run: |
+          version=$(bun -e 'console.log(require("./package.json").version)')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
+          echo "VSIX=ilogic-formatter-$version.vsix" >> "$GITHUB_ENV"
+      - run: bun install
+      - run: bun run compile
+      - run: bun test
+      - name: Package
+        run: bunx vsce package --out "$VSIX"
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.VSIX }}
+          body: See CHANGELOG.md for what changed.
+      - name: Publish to the VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: bunx vsce publish --packagePath "$VSIX" --pat "$VSCE_PAT"
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: bunx ovsx publish "$VSIX" --pat "$OVSX_PAT"

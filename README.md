@@ -90,10 +90,16 @@ git diff --cached --name-only --diff-filter=ACM | grep -i '\.ilogicvb$' | {
 
 ## Installation
 
-### From VSIX (recommended)
+### From the Marketplace (recommended)
 
-1. Run `npm install` then `npm run package` to build the `.vsix` file
+In VS Code, open Extensions, search for **iLogic Formatter** and install it, or run `ext install Womabre.ilogic-formatter` from the Quick Open bar (<kbd>Ctrl</kbd>+<kbd>P</kbd>).
+
+### From a VSIX
+
+1. Download the `.vsix` from a GitHub release, or build one with `bun install` then `bun run package`
 2. In VS Code: `Extensions` → `...` → `Install from VSIX`
+
+Releasing new versions is described in [RELEASING.md](RELEASING.md).
 
 ### Development
 

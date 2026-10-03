@@ -12,3 +12,5 @@ sample/**
 scripts/
 *.code-workspace
 out/cli.js
+.github/**
+RELEASING.md

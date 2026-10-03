@@ -36,8 +36,11 @@ describe("formatRange", () => {
         expect(applyRange("x = 1", 0, 0)).toBe("x = 1\n");
     });
 
-    test("an empty document stays empty", () => {
+    test("an empty or all-blank document stays empty, in format and formatRange alike", () => {
+        expect(format("")).toBe("");
+        expect(format("\n\n  \n")).toBe("");
         expect(formatRange("", 0, 0)).toBe("");
+        expect(applyRange("\n\n", 0, 2)).toBe(format("\n\n"));
     });
 
     for (const f of fixtures) {

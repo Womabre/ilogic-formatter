@@ -107,7 +107,8 @@ export function format(text: string, options: FormatOptions = {}): string {
     while (result.length > 0 && result[result.length - 1] === "") {
         result.pop();
     }
-    return result.join("\n") + "\n";
+    // An empty or all-blank document stays empty
+    return result.length > 0 ? result.join("\n") + "\n" : "";
 }
 
 /**
@@ -135,6 +136,9 @@ export function formatRange(text: string, startLine: number, endLine: number, op
 /** Runs the formatter over every line; entry i holds the output lines for input line i (0, 1 or 2). */
 function formatLines(lines: string[], opts: Required<FormatOptions>): string[][] {
     const out: string[][] = lines.map(() => []);
+    // Classification text per line, computed once (used by lookaheads)
+    const textCache: (string | undefined)[] = [];
+    const lineText = (j: number) => (textCache[j] ??= classificationText(tokenizeLine(lines[j].trim()).tokens));
     let indentLevel = 0;
     let consecutiveBlanks = 0;
     let parenDepth = 0;
@@ -206,13 +210,13 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         formattedCode = endsInString ? formattedCode : formattedCode.trimEnd();
 
         // ── Classify (strings blanked, so their words never match keywords) ──────
-        const norm = codeOnly(casedTokens).trim().toLowerCase();
+        const norm = classificationText(casedTokens);
 
-        // Lookahead: find next non-blank line for context-sensitive classification
+        // Lookahead: the next line with code, for context-sensitive classification
         let nextNorm: string | null = null;
         for (let j = i + 1; j < lines.length; j++) {
-            const t = lines[j].trim();
-            if (t !== "") { nextNorm = t.toLowerCase(); break; }
+            const t = lineText(j);
+            if (t !== "") { nextNorm = t; break; }
         }
 
         // A continuation line is never the start of a statement, so it can only
@@ -225,53 +229,66 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         if (startsStatement) parenDepth = 0;
         const isContinuation = !startsStatement &&
             (parenDepth > 0 || (norm !== "" && continuesStatement && !afterAttribute));
+        // A line can hold several statements separated by ":", e.g.
+        // "Try : x = 1 : Catch : End Try". The line is drawn at the indent of its
+        // first statement; every statement then updates the block state.
+        const statements = isContinuation ? [norm] : splitStatements(norm);
+        const head = statements[0] ?? "";
+        // An If whose header continues on the next lines ("If a _" / "OrElse b Then x")
+        // is single-line or a block depending on what follows its Then, so it
+        // is classified on the whole statement.
+        const headStatement = /^if\b/.test(head) && (endsWithContinuation(head) || countNetParens(casedTokens) > 0)
+            ? joinContinuation(head, lineText, i + 1, lines.length)
+            : head;
         const cls: LineClass = isContinuation
             ? (isLambdaOpener(norm) ? "lambda" : "none")
-            : classifyLine(norm, nextNorm, innermostBlock(stack));
-        let closedLambda: (StackEntry & { kind: "lambda" }) | null = null;
+            : classifyLine(headStatement, nextNorm, innermostBlock(stack));
 
         // ── Pre-line dedent ──────────────────────────────────────────────────────
-        switch (cls) {
-            case "closer": {
-                const top = stack.length > 0 ? stack[stack.length - 1] : null;
-                if (top?.kind === "lambda") {
-                    stack.pop();
-                    closedLambda = top;
-                    indentLevel = top.level - 1;
+        const preDedent = (c: LineClass): (StackEntry & { kind: "lambda" }) | null => {
+            switch (c) {
+                case "closer": {
+                    const top = stack.length > 0 ? stack[stack.length - 1] : null;
+                    if (top?.kind === "lambda") {
+                        stack.pop();
+                        indentLevel = top.level - 1;
+                        return top;
+                    }
+                    indentLevel = Math.max(0, indentLevel - 1);
+                    for (let j = stack.length - 1; j >= 0; j--) {
+                        if (stack[j].kind === "block") { stack.splice(j, 1); break; }
+                    }
                     break;
                 }
-                indentLevel = Math.max(0, indentLevel - 1);
-                for (let j = stack.length - 1; j >= 0; j--) {
-                    if (stack[j].kind === "block") { stack.splice(j, 1); break; }
+                case "end-select": {
+                    const sel = findTopmostSelect(stack);
+                    if (sel) {
+                        indentLevel = sel.level;
+                        stack.splice(stack.lastIndexOf(sel), 1);
+                    } else {
+                        indentLevel = Math.max(0, indentLevel - 1);
+                    }
+                    break;
                 }
-                break;
-            }
-            case "end-select": {
-                const sel = findTopmostSelect(stack);
-                if (sel) {
-                    indentLevel = sel.level;
-                    stack.splice(stack.lastIndexOf(sel), 1);
-                } else {
+                case "case": {
+                    // Always snap to selectLevel + 1
+                    const sel = findTopmostSelect(stack);
+                    if (sel) {
+                        indentLevel = sel.level + 1;
+                    } else {
+                        indentLevel = Math.max(0, indentLevel - 1);
+                    }
+                    break;
+                }
+                case "else":
+                case "catch":
+                case "finally":
                     indentLevel = Math.max(0, indentLevel - 1);
-                }
-                break;
+                    break;
             }
-            case "case": {
-                // Always snap to selectLevel + 1
-                const sel = findTopmostSelect(stack);
-                if (sel) {
-                    indentLevel = sel.level + 1;
-                } else {
-                    indentLevel = Math.max(0, indentLevel - 1);
-                }
-                break;
-            }
-            case "else":
-            case "catch":
-            case "finally":
-                indentLevel = Math.max(0, indentLevel - 1);
-                break;
-        }
+            return null;
+        };
+        const closedLambda = preDedent(cls);
 
         // ── Emit line ────────────────────────────────────────────────────────────
         const continuationExtra = isContinuation ? 1 : 0;
@@ -298,42 +315,54 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         afterAttribute = norm !== "" && endsAttribute(norm);
 
         // ── Post-line indent ─────────────────────────────────────────────────────
-        switch (cls) {
-            case "opener":
-                stack.push({ kind: "block", keyword: blockKeyword(norm) });
-                indentLevel++;
-                break;
-            case "lambda":
-                // The body indents one level past where the header was drawn
-                // (including any continuation indent); its parens start fresh.
-                stack.push({
-                    kind: "lambda",
-                    level: indentLevel + continuationExtra + 1,
-                    outerLevel: indentLevel,
-                    savedParenDepth: parenDepth,
-                });
-                indentLevel += continuationExtra + 1;
-                parenDepth = 0;
-                continuesStatement = false;
-                break;
-            case "select":
-                // Push with the current indent level so Case can snap back to level+1
-                stack.push({ kind: "select", level: indentLevel });
-                indentLevel++; // move to Case level; case body will be +1 more
-                break;
-            case "case":
-                // Body of this case indents one more
-                indentLevel++;
-                break;
-            case "else":
-            case "catch":
-            case "finally":
-                indentLevel++;
-                break;
+        const postIndent = (c: LineClass, statement: string, extra: number) => {
+            switch (c) {
+                case "opener":
+                    stack.push({ kind: "block", keyword: blockKeyword(statement) });
+                    indentLevel++;
+                    break;
+                case "lambda":
+                    // The body indents one level past where the header was drawn
+                    // (including any continuation indent); its parens start fresh.
+                    stack.push({
+                        kind: "lambda",
+                        level: indentLevel + extra + 1,
+                        outerLevel: indentLevel,
+                        savedParenDepth: parenDepth,
+                    });
+                    indentLevel += extra + 1;
+                    parenDepth = 0;
+                    continuesStatement = false;
+                    break;
+                case "select":
+                    // Push with the current indent level so Case can snap back to level+1
+                    stack.push({ kind: "select", level: indentLevel });
+                    indentLevel++; // move to Case level; case body will be +1 more
+                    break;
+                case "case":
+                    // Body of this case indents one more
+                    indentLevel++;
+                    break;
+                case "else":
+                case "catch":
+                case "finally":
+                    indentLevel++;
+                    break;
+            }
+        };
+        postIndent(cls, head, continuationExtra);
+
+        // The other statements on the line ("... : Catch : End Try")
+        for (const statement of statements.slice(1)) {
+            const c = classifyLine(statement, nextNorm, innermostBlock(stack));
+            const lambda = preDedent(c);
+            if (lambda) indentLevel = lambda.outerLevel;
+            postIndent(c, statement, 0);
         }
 
         // ── Blank line after End Sub / End Function / End Property ───────────────
-        if (opts.blankLineAfterBlock && BLOCK_ENDERS.has(norm) && !closedLambda) {
+        const lastStatement = statements[statements.length - 1] ?? "";
+        if (opts.blankLineAfterBlock && BLOCK_ENDERS.has(lastStatement) && !closedLambda) {
             const nextLine = lines[i + 1];
             if (nextLine !== undefined && nextLine.trim() !== "") {
                 out[i].push("");
@@ -422,6 +451,10 @@ function classifyLine(norm: string, nextNorm: string | null = null, container: s
             if (container === "interface") return "none";
             if (words.slice(0, words.indexOf(effectiveKeyword)).includes("mustoverride")) return "none";
         }
+        // Get/Set open a block only as property accessors ("Set(value As T)"),
+        // not in a VBA-style assignment ("Set oTable = ...").
+        if ((effectiveKeyword === "get" || effectiveKeyword === "set") &&
+            !/^(?:(?:public|private|protected|friend)\s+)*(?:get|set)\s*(?:\(|$)/.test(norm)) return "none";
         // Auto-properties are single-line and have no Get/Set/End Property block.
         // Only treat Property as a block opener when the next non-blank line
         // is Get, Set, or End Property.
@@ -443,6 +476,73 @@ function classifyLine(norm: string, nextNorm: string | null = null, container: s
 // explicit " _", and the implicit-continuation tokens (comma, open bracket,
 // assignment/arithmetic/concatenation operators, logical keywords).
 const CONTINUATION_END = /(?:(?:^|\s)_|[,({=&+\-*\/\\^]|\b(?:andalso|orelse|and|or|xor|not|is|isnot|like|mod))$/;
+
+/**
+ * The text the classifier reads: code only, strings blanked to "", lowercase,
+ * and escaped identifiers ("[Property]", "[Date]") replaced by a plain name so
+ * they are never taken for keywords.
+ */
+function classificationText(tokens: Token[]): string {
+    return codeOnly(tokens).replace(/\[[^\]]*\]/g, "name").trim().toLowerCase();
+}
+
+/**
+ * Joins a statement that continues onto the next lines (" _", trailing
+ * operator or comma, open parenthesis) into one line of classification text.
+ * Stops at a blank or comment-only line, and after 30 lines.
+ */
+function joinContinuation(first: string, lineText: (j: number) => string, from: number, count: number): string {
+    let joined = first;
+    let depth = netParens(first);
+    let continues = endsWithContinuation(first);
+    for (let j = from; j < count && j < from + 30 && (continues || depth > 0); j++) {
+        const next = lineText(j);
+        if (next === "") break;
+        joined += " " + next;
+        depth += netParens(next);
+        continues = endsWithContinuation(next);
+    }
+    return joined;
+}
+
+function netParens(text: string): number {
+    let depth = 0;
+    for (const ch of text) {
+        if (ch === "(") depth++;
+        else if (ch === ")") depth--;
+    }
+    return depth;
+}
+
+/**
+ * Splits a line (strings blanked, comment removed) into its ":"-separated
+ * statements. Colons inside parentheses (named arguments ":="), in date
+ * literals (#12:00#) and in directives are not separators. An If statement
+ * takes the rest of the line: "If x Then a : b" is one single-line If.
+ */
+function splitStatements(norm: string): string[] {
+    if (norm.startsWith("#")) return norm === "" ? [] : [norm];
+    const statements: string[] = [];
+    let depth = 0;
+    let inDate = false;
+    let start = 0;
+    for (let k = 0; k < norm.length; k++) {
+        const ch = norm[k];
+        // "#" opens a date literal unless it is a type character ("x#")
+        if (ch === "#" && (inDate || !/\w/.test(norm[k - 1] ?? ""))) inDate = !inDate;
+        else if (inDate) continue;
+        else if (ch === "(") depth++;
+        else if (ch === ")") depth--;
+        else if (ch === ":" && depth <= 0 && norm[k + 1] !== "=") {
+            const statement = norm.slice(start, k).trim();
+            if (/^if\b/.test(statement)) break;
+            statements.push(statement);
+            start = k + 1;
+        }
+    }
+    statements.push(norm.slice(start).trim());
+    return statements.filter((st) => st !== "");
+}
 
 // Keywords that can only begin a statement, never continue one
 const STATEMENT_ONLY = new RegExp("^(?:" + [
@@ -500,8 +600,9 @@ function normalizeComment(comment: string): string {
 
 function applyKeywordCasing(token: Token): Token {
     if (token.kind !== "code") return token;
-    const text = token.text.replace(/\b([A-Za-z][A-Za-z0-9_]*)\b/g, (match) => {
-        return VB_KEYWORDS[match.toLowerCase()] ?? match;
+    // Escaped identifiers ("[property]") are names, not keywords: left as written
+    const text = token.text.replace(/\[[^\]]*\]|\b([A-Za-z][A-Za-z0-9_]*)\b/g, (match, word) => {
+        return word ? VB_KEYWORDS[word.toLowerCase()] ?? match : match;
     });
     return { ...token, text };
 }

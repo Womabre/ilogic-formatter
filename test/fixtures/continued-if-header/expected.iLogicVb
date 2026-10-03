@@ -1,0 +1,9 @@
+Function Detect(v As Object) As String
+    If TypeOf v Is Double OrElse _
+        TypeOf v Is Long Then Return "number"
+    If a OrElse
+            b Then
+        Return "x"
+    End If
+    Return ""
+End Function

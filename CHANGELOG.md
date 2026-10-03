@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-03
+
+### Fixed
+
+- Lines with several `:`-separated statements are split, so `Try : x = 1 : Catch : End Try` and `Catch : End Try` no longer leave a `Try` block open, and `For ... : Next` and `Dim x = 1 : If y Then` are handled. Colons in named arguments (`a:=1`), date literals (`#12:00#`) and directives are not separators.
+- An `If` whose `Then` is on a continuation line (`If a OrElse _` / `b Then Return x`) is classified on the whole statement, so a single-line `If` no longer opens a block.
+- VBA-style `Set x = ...` no longer opens a property `Set` block. `Get` and `Set` open a block only as property accessors.
+- Escaped identifiers (`[Property]`, `[Date]`) are no longer read as keywords, and their casing is left as written.
+- The lookahead that decides whether a `Property` has a body now skips comment lines. Before, a comment starting with "get" made a property look like a block, and a comment block above `Get` made a block property look like an auto-property.
+- Formatting an empty or all-blank document leaves it empty instead of adding a newline, matching Format Selection.
+
 ## [1.2.0] - 2026-10-03
 
 ### Added

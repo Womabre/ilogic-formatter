@@ -1,0 +1,18 @@
+Class Box
+Private _w As Double
+Public Property Width As Double
+Get
+Return _w
+End Get
+Set(value As Double)
+_w = value
+End Set
+End Property
+Sub Draw()
+Set oTable = oSheet.CustomTables.Add(x)
+Dim [Property] As PropDef
+[property] = If(item Is Nothing, Nothing, item.Def)
+' get local reference
+Dim [Date] As String = "x"
+End Sub
+End Class

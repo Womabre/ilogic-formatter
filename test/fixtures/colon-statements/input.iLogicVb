@@ -1,0 +1,13 @@
+Sub Main()
+Try : p = ps.Item(name) : Catch : End Try
+Try
+DoIt()
+Catch : End Try
+For i = 1 To 3 : Foo(i) : Next
+If ready Then : Go()
+Dim d = #1/1/2020 12:00# : Bar(a:=1)
+Retry:
+Dim x = 1 : If y Then
+z = 2
+End If
+End Sub

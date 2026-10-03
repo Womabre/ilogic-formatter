@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "Womabre",
   "icon": "icon.png",
   "repository": {
@@ -131,6 +131,11 @@
           "description": "Show warnings for unbalanced blocks: End If without If, a Sub or If that is never closed, Else or Case outside its block.",
           "scope": "language-overridable"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[ilogicvb]": {
+        "editor.formatOnType": true
       }
     }
   },

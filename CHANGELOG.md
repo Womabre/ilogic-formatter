@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-03
+
+### Added
+
+- Indent as you type. Pressing Enter formats the line you just finished (indent and keyword casing, e.g. `end if` becomes `End If` at the right level) and starts the new line where the formatter would put the next statement, including inside `Select Case`. On by default for `.iLogicVb` files (`editor.formatOnType`); lines inside multi-line strings are left alone.
+- Indentation rules for VS Code's own auto-indent, used where format on type is off (e.g. `.vb` files): block openers indent the next line, closers dedent as you type them. `Case` lines sit at the `Select` level until the file is formatted.
+- Enter on a `'''` doc comment line continues the doc comment.
+
 ## [1.4.0] - 2026-10-03
 
 ### Added

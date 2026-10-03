@@ -134,6 +134,16 @@ export function formatRange(text: string, startLine: number, endLine: number, op
     return result.join("\n");
 }
 
+/** True when line `line` (0-based) begins inside a multi-line string literal. */
+export function startsInString(text: string, line: number): boolean {
+    const lines = text.split(/\r?\n/);
+    let state: LineState = INITIAL_STATE;
+    for (let i = 0; i < line && i < lines.length; i++) {
+        state = tokenizeLine(state.openString ? lines[i] : lines[i].trimStart(), state).endState;
+    }
+    return state.openString !== null;
+}
+
 /** A block structure problem: a closer without an opener, or a block that never closes. */
 export interface BlockProblem {
     /** 0-based line of the problem */

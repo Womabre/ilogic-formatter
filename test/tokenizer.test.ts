@@ -63,3 +63,12 @@ describe("tokenizeLine", () => {
         expect(codeOnly(tokenizeLine(`If s = "then what" Then ' x`).tokens)).toBe(`If s = "" Then `);
     });
 });
+
+import { startsInString } from "../src/formatter";
+
+describe("startsInString", () => {
+    test("knows which lines continue a multi-line string", () => {
+        const text = 'Dim s = "abc\n   def\nghi"\nx = 1\n';
+        expect([0, 1, 2, 3].map((line) => startsInString(text, line))).toEqual([false, true, true, false]);
+    });
+});

@@ -11,5 +11,21 @@
     ["(", ")"],
     ["\"", "\""]
   ],
-  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
+  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+  "indentationRules": {
+    "increaseIndentPattern": {
+      "pattern": "^\\s*(?:<[^>]*>\\s*)*(?:(?:Public|Private|Protected|Friend|Shared|Static|Overrides|Overridable|NotOverridable|Overloads|MustInherit|NotInheritable|Shadows|Partial|Default|ReadOnly|WriteOnly|Async|Iterator|Widening|Narrowing)\\s+)*(?:Sub|Function|Get|Class|Module|Structure|Interface|Enum|Namespace|Operator|Set(?!\\s+[\\w.]+\\s*=))\\b(?!.*\\bMustOverride\\b)|^\\s*#?(?:If|ElseIf)\\b.*\\bThen\\s*(?:'.*)?$|^\\s*#?Else\\s*(?:'.*)?$|^\\s*(?:For|While|Do|Select|Case|Try|Catch|Finally|With|Using|SyncLock)\\b|\\b(?:Sub|Function)\\s*\\([^()]*\\)\\s*(?:As\\s+\\S+\\s*)?$",
+      "flags": "i"
+    },
+    "decreaseIndentPattern": {
+      "pattern": "^\\s*(?:End\\s+(?:If|Sub|Function|Property|Get|Set|Class|Module|Structure|Interface|Enum|Namespace|Operator|Select|Try|While|With|Using|SyncLock)\\b|Next\\b|Loop\\b|Else\\b|ElseIf\\b|Case\\b|Catch\\b|Finally\\b|#Else\\b|#ElseIf\\b|#End\\s+If\\b)",
+      "flags": "i"
+    }
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*'''.*$",
+      "action": { "indent": "none", "appendText": "''' " }
+    }
+  ]
 }

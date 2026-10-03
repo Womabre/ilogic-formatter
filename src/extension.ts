@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { BlockProblem, checkBlocks, format, FormatOptions, formatRange } from "./formatter";
+import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsInString } from "./formatter";
 
 /** The editor's indentation for a file, as VS Code passes it to formatters. */
 interface EditorIndent {
@@ -69,10 +69,47 @@ export function activate(context: vscode.ExtensionContext) {
         },
     };
 
+    // Format on type (Enter): the line just finished gets its final indent and
+    // casing, and the new line starts where the formatter would put the next
+    // statement. On by default for iLogic files (configurationDefaults).
+    const onTypeProvider: vscode.OnTypeFormattingEditProvider = {
+        provideOnTypeFormattingEdits(document, position, ch, options) {
+            const line = position.line;
+            if (ch !== "\n" || line < 1) return [];
+            const opts = getOptions(document, options);
+            const text = document.getText().replace(/\r\n/g, "\n");
+            const lines = text.split("\n");
+            const edits: vscode.TextEdit[] = [];
+
+            const prev = line - 1;
+            if (lines[prev].trim() !== "" && !startsInString(text, prev)) {
+                const formatted = formatRange(text, prev, prev, opts).split("\n")[0];
+                if (formatted.trim() !== "" && formatted !== lines[prev]) {
+                    edits.push(vscode.TextEdit.replace(document.lineAt(prev).range, formatted));
+                }
+            }
+
+            if (!startsInString(text, line)) {
+                // Probe with a placeholder statement when the new line is empty
+                const current = lines[line] ?? "";
+                const probeLines = [...lines];
+                probeLines[line] = current.trim() === "" ? "x" : current;
+                const probe = formatRange(probeLines.join("\n"), line, line, opts).split("\n")[0];
+                const indent = probe.match(/^\s*/)![0];
+                const oldIndent = current.match(/^\s*/)![0];
+                if (indent !== oldIndent) {
+                    edits.push(vscode.TextEdit.replace(new vscode.Range(line, 0, line, oldIndent.length), indent));
+                }
+            }
+            return edits;
+        },
+    };
+
     function register(selector: vscode.DocumentSelector): vscode.Disposable {
         return vscode.Disposable.from(
             vscode.languages.registerDocumentFormattingEditProvider(selector, documentProvider),
-            vscode.languages.registerDocumentRangeFormattingEditProvider(selector, rangeProvider)
+            vscode.languages.registerDocumentRangeFormattingEditProvider(selector, rangeProvider),
+            vscode.languages.registerOnTypeFormattingEditProvider(selector, onTypeProvider, "\n")
         );
     }
 

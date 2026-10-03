@@ -8,7 +8,7 @@ A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` fil
 - **Keyword casing** — Normalizes VB.NET keywords to their canonical casing (`dim` → `Dim`, `if` → `If`, `integer` → `Integer`, etc.)
 - **Blank line normalization** — Collapses multiple consecutive blank lines and optionally inserts a blank line after `End Sub` / `End Function`
 - **Comment formatting** — Ensures a space after the comment apostrophe (`'comment` → `' comment`)
-- **Syntax highlighting** — Full TextMate grammar for `.iLogicVb` files
+- **Syntax highlighting** — keywords, types, constants, strings, comments and numbers in `.iLogicVb` files. The keyword lists are generated from the same list the formatter uses for casing (`bun run grammar`)
 
 ## Usage
 

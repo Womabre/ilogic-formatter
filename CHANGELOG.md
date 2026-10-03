@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-03
+
+### Fixed
+
+- Syntax highlighting covers every keyword the formatter cases. 67 were missing, including `MustInherit`, `Declare`, `Delegate`, `Event`, `ReDim`, `AddressOf`, `NameOf` and the `CShort`-family conversions. `Me`, `MyBase`, `MyClass` and `Global` are highlighted as language variables.
+
+### Changed
+
+- The grammar's keyword lists are generated from `src/keywords.ts` by `bun run grammar`, and a test fails when the committed grammar is out of date. `End If`-style pairs are highlighted word by word.
+
 ## [1.3.0] - 2026-10-03
 
 ### Changed

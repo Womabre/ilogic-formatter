@@ -2,15 +2,25 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "iLogic VB",
   "scopeName": "source.ilogicvb",
-  "fileTypes": ["iLogicVb"],
+  "fileTypes": [
+    "iLogicVb"
+  ],
   "patterns": [
-    { "include": "#comments" },
-    { "include": "#strings" },
-    { "include": "#keywords" },
-    { "include": "#types" },
-    { "include": "#constants" },
-    { "include": "#numbers" },
-    { "include": "#operators" }
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#operators"
+    }
   ],
   "repository": {
     "comments": {
@@ -36,31 +46,31 @@
       "patterns": [
         {
           "name": "keyword.control.ilogicvb",
-          "match": "(?i)\\b(If|Then|Else|ElseIf|End If|For|Each|In|To|Step|Next|While|End While|Do|Loop|Until|Select|Case|End Select|Exit|Continue|Return|GoTo|Try|Catch|Finally|End Try|Throw)\\b"
+          "match": "(?i)\\b(Continue|SyncLock|Finally|ElseIf|Select|Return|Resume|While|Until|Gosub|Catch|Throw|Yield|Await|Error|Using|Then|Else|Each|Step|Next|Loop|Case|Exit|GoTo|Wend|When|Stop|Call|With|End|For|Try|If|In|To|Do|On)\\b"
         },
         {
           "name": "keyword.declaration.ilogicvb",
-          "match": "(?i)\\b(Sub|End Sub|Function|End Function|Property|End Property|Get|Set|Class|End Class|Module|End Module|Structure|End Structure|Enum|End Enum|Interface|End Interface|Namespace|End Namespace)\\b"
+          "match": "(?i)\\b(Implements|Structure|Interface|Namespace|Function|Property|Delegate|Operator|Preserve|Inherits|Explicit|Declare|Unicode|Imports|Handles|Compare|Module|Option|Strict|Class|Event|Alias|Const|ReDim|Erase|Infer|Enum|Ansi|Sub|Get|Set|Lib|Dim|Let|New|Off|As|Of)\\b"
         },
         {
           "name": "keyword.modifier.ilogicvb",
-          "match": "(?i)\\b(Dim|As|New|Const|Static|ReadOnly|Public|Private|Protected|Friend|Shared|Overrides|Overridable|MustOverride|NotOverridable|ByVal|ByRef|Optional|Imports|With|End With|Using|End Using|Handles|Inherits|Implements|Shadows|Partial|WithEvents)\\b"
+          "match": "(?i)\\b(NotOverridable|NotInheritable|MustOverride|Overridable|MustInherit|WithEvents|ParamArray|Protected|WriteOnly|Overrides|Overloads|Narrowing|ReadOnly|Widening|Iterator|Optional|Private|Shadows|Partial|Default|Public|Friend|Shared|Static|Async|ByVal|ByRef|Out)\\b"
         },
         {
-          "name": "keyword.operator.ilogicvb",
-          "match": "(?i)\\b(And|AndAlso|Or|OrElse|Not|Xor|Is|IsNot|Like|Mod|TypeOf|GetType|DirectCast|TryCast|CType|AddHandler|RemoveHandler|RaiseEvent)\\b"
-        }
-      ]
-    },
-    "types": {
-      "name": "storage.type.ilogicvb",
-      "match": "(?i)\\b(Boolean|Byte|SByte|Short|UShort|Integer|UInteger|Long|ULong|Single|Double|Decimal|String|Char|Date|Object)\\b"
-    },
-    "constants": {
-      "patterns": [
+          "name": "keyword.operator.word.ilogicvb",
+          "match": "(?i)\\b(GetXmlNamespace|RemoveHandler|DirectCast|AddHandler|RaiseEvent|AddressOf|AndAlso|GetType|IsFalse|TryCast|CUShort|OrElse|TypeOf|NameOf|IsTrue|CSByte|CShort|IsNot|CType|CBool|CByte|CChar|CDate|CUInt|CULng|Like|CDbl|CDec|CInt|CLng|CObj|CSng|CStr|And|Not|Xor|Mod|Or|Is)\\b"
+        },
+        {
+          "name": "storage.type.ilogicvb",
+          "match": "(?i)\\b(UInteger|Boolean|Integer|Decimal|Variant|UShort|Single|Double|String|Object|SByte|Short|ULong|Byte|Long|Char|Date)\\b"
+        },
         {
           "name": "constant.language.ilogicvb",
-          "match": "(?i)\\b(True|False|Nothing)\\b"
+          "match": "(?i)\\b(Nothing|False|True)\\b"
+        },
+        {
+          "name": "variable.language.ilogicvb",
+          "match": "(?i)\\b(MyClass|MyBase|Global|Me)\\b"
         }
       ]
     },

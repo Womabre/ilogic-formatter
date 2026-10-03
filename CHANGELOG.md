@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-03
+
+### Added
+
+- Outline, breadcrumbs and Go to Symbol (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>): namespaces, classes, modules, structures, interfaces, enums, Subs, Functions, Properties, Events, Operators, Delegates and Declares, nested by containment. `Sub New` shows as a constructor, members of a type as methods.
+- Folding built on the same block pairing as formatting: every block folds up to its closing line, `If`/`Else` and `Case` sections fold separately, a whole `Select Case` folds, and `#Region`, comment runs and `Imports` runs fold with their own kinds (so *Fold All Regions* / *Fold All Block Comments* work).
+
 ## [1.5.0] - 2026-10-03
 
 ### Added

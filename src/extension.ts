@@ -1,5 +1,27 @@
 import * as vscode from "vscode";
 import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsInString } from "./formatter";
+import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
+
+const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
+    class: vscode.SymbolKind.Class,
+    module: vscode.SymbolKind.Module,
+    struct: vscode.SymbolKind.Struct,
+    interface: vscode.SymbolKind.Interface,
+    enum: vscode.SymbolKind.Enum,
+    namespace: vscode.SymbolKind.Namespace,
+    method: vscode.SymbolKind.Method,
+    function: vscode.SymbolKind.Function,
+    constructor: vscode.SymbolKind.Constructor,
+    property: vscode.SymbolKind.Property,
+    event: vscode.SymbolKind.Event,
+    operator: vscode.SymbolKind.Operator,
+};
+
+const FOLDING_KINDS = {
+    comment: vscode.FoldingRangeKind.Comment,
+    region: vscode.FoldingRangeKind.Region,
+    imports: vscode.FoldingRangeKind.Imports,
+};
 
 /** The editor's indentation for a file, as VS Code passes it to formatters. */
 interface EditorIndent {
@@ -105,8 +127,32 @@ export function activate(context: vscode.ExtensionContext) {
         },
     };
 
+    // Outline, breadcrumbs and Go to Symbol (Ctrl+Shift+O)
+    const symbolProvider: vscode.DocumentSymbolProvider = {
+        provideDocumentSymbols(document) {
+            const toSymbol = (s: OutlineSymbol): vscode.DocumentSymbol => {
+                const range = new vscode.Range(s.start, 0, s.end, document.lineAt(s.end).text.length);
+                const selection = new vscode.Range(s.nameLine, s.nameStart, s.nameLine, s.nameStart + s.name.length);
+                const symbol = new vscode.DocumentSymbol(s.name, s.detail, SYMBOL_KINDS[s.kind], range, selection);
+                symbol.children = s.children.map(toSymbol);
+                return symbol;
+            };
+            return outline(document.getText()).map(toSymbol);
+        },
+    };
+
+    // Folding: blocks (split at Else/Case/Catch), #Region, comment and Imports runs
+    const foldingProvider: vscode.FoldingRangeProvider = {
+        provideFoldingRanges(document) {
+            return foldingRanges(document.getText()).map((r) =>
+                new vscode.FoldingRange(r.start, r.end, r.kind ? FOLDING_KINDS[r.kind] : undefined));
+        },
+    };
+
     function register(selector: vscode.DocumentSelector): vscode.Disposable {
         return vscode.Disposable.from(
+            vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
+            vscode.languages.registerFoldingRangeProvider(selector, foldingProvider),
             vscode.languages.registerDocumentFormattingEditProvider(selector, documentProvider),
             vscode.languages.registerDocumentRangeFormattingEditProvider(selector, rangeProvider),
             vscode.languages.registerOnTypeFormattingEditProvider(selector, onTypeProvider, "\n")

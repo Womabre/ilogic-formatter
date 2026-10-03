@@ -9,6 +9,7 @@ A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` fil
 - **Blank line normalization** — Collapses multiple consecutive blank lines and optionally inserts a blank line after `End Sub` / `End Function`
 - **Comment formatting** — Ensures a space after the comment apostrophe (`'comment` → `' comment`)
 - **Indent as you type** — Enter formats the finished line and puts the cursor at the right indent for the next one (`.iLogicVb` files; uses `editor.formatOnType`)
+- **Outline and folding** — Subs, Functions, Properties and types in the Outline view, breadcrumbs and Go to Symbol; folding for every block, `Case`/`Else` section, `#Region`, comment run and `Imports` run
 - **Block warnings** — flags `End If` without `If`, a `Sub` or `If` that is never closed, and `Else`/`Case`/`Catch` outside their block, as you type
 - **Syntax highlighting** — keywords, types, constants, strings, comments and numbers in `.iLogicVb` files. The keyword lists are generated from the same list the formatter uses for casing (`bun run grammar`)
 
@@ -80,7 +81,8 @@ Open this folder in VS Code and press <kbd>F5</kbd>. It compiles the extension a
 3. **Format on paste:** paste a few unindented lines inside `DoWork`. They land at the body indentation.
 4. **Block warnings:** open `Unbalanced Rule.iLogicVb`. The Problems panel shows two warnings: the `If` on line 6 is not closed before `End Sub`, and the `End If` on line 13 has no `If`. Fix them and the warnings go away.
 5. **Indent as you type:** in a new line inside `Sub main`, type `if x then` and press Enter. The line becomes `If x Then` and the cursor lands one level deeper. Type `end if` and press Enter: it becomes `End If` at the `If` level.
-6. **`.vb` opt-out:** `Sample.vb` formats by default. Set `ilogicFormatter.formatVbFiles` to `false` and Format Document no longer offers this formatter for it.
+6. **Outline and folding:** the Outline view lists `main` and `DoWork`. The fold arrows next to `Select Case`, each `Case`, and the `Sub(p)` lambda fold those blocks.
+7. **`.vb` opt-out:** `Sample.vb` formats by default. Set `ilogicFormatter.formatVbFiles` to `false` and Format Document no longer offers this formatter for it.
 
 ## Notes
 

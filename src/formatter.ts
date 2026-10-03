@@ -160,10 +160,26 @@ export interface BlockProblem {
  * same way formatting does.
  */
 export function checkBlocks(text: string, options: FormatOptions = {}): BlockProblem[] {
+    return analyzeBlocks(text, options).problems;
+}
+
+/** A matched block: opener line, closer line, and the Else/Case/Catch lines in between. */
+export interface BlockSpan {
+    /** lowercase keyword of the opener: "sub", "if", "select", "lambda_sub", "#if", ... */
+    keyword: string;
+    start: number;
+    end: number;
+    middles: number[];
+}
+
+/** Block problems and the matched blocks (for folding and the outline). */
+export function analyzeBlocks(text: string, options: FormatOptions = {}): { problems: BlockProblem[]; spans: BlockSpan[] } {
     const code = new BlockChecker();
     const directives = new BlockChecker();
     formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }, { code, directives, branchStarts: [] });
-    return [...code.finish(), ...directives.finish()].sort((a, b) => a.line - b.line);
+    const problems = [...code.finish(), ...directives.finish()].sort((a, b) => a.line - b.line);
+    const spans = [...code.spans, ...directives.spans].sort((a, b) => a.start - b.start);
+    return { problems, spans };
 }
 
 /**
@@ -172,11 +188,12 @@ export function checkBlocks(text: string, options: FormatOptions = {}): BlockPro
  * End If gives one warning instead of a cascade.
  */
 class BlockChecker {
-    private stack: { keyword: string; line: number }[] = [];
+    private stack: { keyword: string; line: number; middles: number[] }[] = [];
     private problems: BlockProblem[] = [];
+    readonly spans: BlockSpan[] = [];
 
     open(keyword: string, line: number): void {
-        this.stack.push({ keyword, line });
+        this.stack.push({ keyword, line, middles: [] });
     }
 
     /**
@@ -191,6 +208,8 @@ class BlockChecker {
             return;
         }
         this.reportSkipped(match, closer, line);
+        const open = this.stack[match];
+        this.spans.push({ keyword: open.keyword, start: open.line, end: line, middles: open.middles });
         this.stack.length = match;
     }
 
@@ -203,15 +222,16 @@ class BlockChecker {
         }
         this.reportSkipped(match, statement, line);
         this.stack.length = match + 1;
+        this.stack[match].middles.push(line);
     }
 
     /** The open blocks, to rewind to at #Else (each #If branch starts from the same state). */
-    snapshot(): { keyword: string; line: number }[] {
-        return [...this.stack];
+    snapshot(): { keyword: string; line: number; middles: number[] }[] {
+        return this.stack.map((open) => ({ ...open, middles: [...open.middles] }));
     }
 
-    restore(snapshot: { keyword: string; line: number }[]): void {
-        this.stack = [...snapshot];
+    restore(snapshot: { keyword: string; line: number; middles: number[] }[]): void {
+        this.stack = snapshot.map((open) => ({ ...open, middles: [...open.middles] }));
     }
 
     finish(): BlockProblem[] {
@@ -262,7 +282,7 @@ interface Checkers {
     code: BlockChecker;
     directives: BlockChecker;
     /** Code-block state at each open #If, innermost last */
-    branchStarts: { keyword: string; line: number }[][];
+    branchStarts: { keyword: string; line: number; middles: number[] }[][];
 }
 
 /** Runs the formatter over every line; entry i holds the output lines for input line i (0, 1 or 2). */

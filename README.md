@@ -78,52 +78,14 @@ As a git pre-commit hook (`.git/hooks/pre-commit`) that fails the commit when a 
 
 ```bash
 #!/bin/sh
-files=$(git diff --cached --name-only --diff-filter=ACM | grep -i '\.ilogicvb
-
-### From VSIX (recommended)
-
-1. Run `npm install` then `npm run package` to build the `.vsix` file
-2. In VS Code: `Extensions` → `...` → `Install from VSIX`
-
-### Development
-
-```bash
-npm install
-npm run compile
-bun test
-# Press F5 in VS Code to launch Extension Development Host
-```
-
-### Testing in VS Code
-
-Open this folder in VS Code and press <kbd>F5</kbd>. It compiles the extension and opens a second window (the Extension Development Host) on `sample/`, with only this extension loaded. Then check:
-
-1. **Format Document:** open `Sample Rule.iLogicVb` and press <kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd>.
-   - Keywords are cased: `Option Strict On`, `Sub main()`, `List(Of String)`.
-   - The string `"Pipe 1/2″ – " & area & " m²"` is unchanged.
-   - `Try : DoWork(area) : Catch : End Try` stays on one line, at the `Case Else` body level.
-   - The `Sub(p)` lambda body is indented, and `End Sub)` lines up with `parts.ForEach`.
-   - The `_` and `AndAlso` continuation lines are indented one extra level.
-   - `<DebuggerStepThrough()> Private Sub DoWork` indents its body.
-2. **Format Selection:** undo, select the lines between `Sub main()` and `End Sub`, and press <kbd>Ctrl</kbd>+<kbd>K</kbd> <kbd>Ctrl</kbd>+<kbd>F</kbd>. The lines get the indentation of the code around them, and nothing outside the selection changes.
-3. **Format on paste:** paste a few unindented lines inside `DoWork`. They land at the body indentation.
-4. **Block warnings:** open `Unbalanced Rule.iLogicVb`. The Problems panel shows two warnings: the `If` on line 6 is not closed before `End Sub`, and the `End If` on line 13 has no `If`. Fix them and the warnings go away.
-5. **Indent as you type:** in a new line inside `Sub main`, type `if x then` and press Enter. The line becomes `If x Then` and the cursor lands one level deeper. Type `end if` and press Enter: it becomes `End If` at the `If` level.
-6. **Outline and folding:** the Outline view lists `main` and `DoWork`. The fold arrows next to `Select Case`, each `Case`, and the `Sub(p)` lambda fold those blocks.
-7. **iLogic objects:** type `Logger.` in `Sub main`: the six log levels are offered. Hover `iProperties` for its description and reference link.
-8. **Convention hints:** the one-line `Try : DoWork(area) : Catch : End Try` in `Sample Rule.iLogicVb` is flagged as an empty Catch. In `Unbalanced Rule.iLogicVb`, the missing `Option Strict On` is flagged on line 1; its light bulb offers to add it.
-9. **`.vb` opt-out:** `Sample.vb` formats by default. Set `ilogicFormatter.formatVbFiles` to `false` and Format Document no longer offers this formatter for it.
-
-## Notes
-
-- iLogic rules use a VB.NET dialect with Inventor-specific globals (`iProperties`, `Parameter`, etc.) — these are treated as identifiers and their casing is left unchanged
-- Single-line `If x Then DoSomething` is detected and not indented
-- Continuation lines (after ` _`, a comma, an operator or an open bracket) are indented one extra level; multi-line lambdas indent their body
-- `ElseIf`, `Else`, `Catch`, `Finally` correctly dedent then re-indent
-- String literals and comments are never changed: keyword casing and Unicode replacement only touch code
-- Formatter tests live in `test/fixtures/<name>/` as `input.iLogicVb` + `expected.iLogicVb`; a `todo.md` marks a known bug
-)
-[ -z "$files" ] || bun /path/to/ilogic-formatter/src/cli.ts --check $files
+# One file per line, so rule names with spaces work
+git diff --cached --name-only --diff-filter=ACM | grep -i '\.ilogicvb$' | {
+    status=0
+    while IFS= read -r file; do
+        bun /path/to/ilogic-formatter/src/cli.ts --check "$file" || status=1
+    done
+    exit $status
+}
 ```
 
 ## Installation

@@ -13,6 +13,9 @@
       "include": "#strings"
     },
     {
+      "include": "#ilogic"
+    },
+    {
       "include": "#keywords"
     },
     {
@@ -41,6 +44,10 @@
           "match": "\"\""
         }
       ]
+    },
+    "ilogic": {
+      "name": "support.class.ilogicvb",
+      "match": "(?<![\\w.])(ThisApplication|SharedVariable|RuleArguments|ThisAssembly|iProperties|ThisDrawing|Constraints|ThisServer|MultiValue|SheetMetal|Components|Constraint|iLogicForm|InventorVb|Parameter|Component|iAssembly|WorkPlane|iLogicVb|Patterns|iFeature|ThisDoc|Feature|GoExcel|Measure|ThisBom|Logger|Sketch|Joint|iPart)\\b"
     },
     "keywords": {
       "patterns": [

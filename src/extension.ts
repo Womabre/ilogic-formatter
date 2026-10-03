@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsInString } from "./formatter";
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
+import { hoverAt, memberMarkdown, objectMarkdown, suggestionsFor } from "./completion";
 
 const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
     class: vscode.SymbolKind.Class,
@@ -149,8 +150,42 @@ export function activate(context: vscode.ExtensionContext) {
         },
     };
 
+    // Completion and hover for the predefined iLogic objects (ThisDoc, Logger, ...)
+    const completionProvider: vscode.CompletionItemProvider = {
+        provideCompletionItems(document, position) {
+            const suggestions = suggestionsFor(document.lineAt(position.line).text.slice(0, position.character));
+            if (!suggestions) return [];
+            if (suggestions.kind === "members") {
+                return suggestions.members.map((member) => {
+                    const item = new vscode.CompletionItem(member.name,
+                        member.kind === "method" ? vscode.CompletionItemKind.Method : vscode.CompletionItemKind.Property);
+                    item.detail = `${suggestions.object.name}.${member.name} (${suggestions.object.type})`;
+                    item.documentation = new vscode.MarkdownString(memberMarkdown(suggestions.object, member));
+                    return item;
+                });
+            }
+            return suggestions.objects.map((object) => {
+                const item = new vscode.CompletionItem(object.name, vscode.CompletionItemKind.Variable);
+                item.detail = object.type;
+                item.documentation = new vscode.MarkdownString(objectMarkdown(object));
+                return item;
+            });
+        },
+    };
+
+    const hoverProvider: vscode.HoverProvider = {
+        provideHover(document, position) {
+            const info = hoverAt(document.lineAt(position.line).text, position.character);
+            if (!info) return undefined;
+            return new vscode.Hover(new vscode.MarkdownString(info.markdown),
+                new vscode.Range(position.line, info.start, position.line, info.end));
+        },
+    };
+
     function register(selector: vscode.DocumentSelector): vscode.Disposable {
         return vscode.Disposable.from(
+            vscode.languages.registerCompletionItemProvider(selector, completionProvider, "."),
+            vscode.languages.registerHoverProvider(selector, hoverProvider),
             vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
             vscode.languages.registerFoldingRangeProvider(selector, foldingProvider),
             vscode.languages.registerDocumentFormattingEditProvider(selector, documentProvider),

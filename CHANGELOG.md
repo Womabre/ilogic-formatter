@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-03
+
+### Added
+
+- Completion for the predefined iLogic objects: their names while typing, and their members after a dot (`ThisDoc.`, `Logger.`, `iProperties.`, `Parameter.`, `SharedVariable.`, `GoExcel.`, ... 29 objects in all). Nothing is suggested inside strings or comments, or after a dot on other objects.
+- Hover for those objects and members: a short description, the parameter types of each overload, and a link to the object's page in the Autodesk iLogic API reference.
+- Highlighting for the predefined objects as written (`support.class`), but not after a dot (`oDoc.Component` stays plain).
+- The object and member data comes from the Autodesk iLogic API reference (namespace `Autodesk.iLogic.Interfaces`); parameter names are shown only where the reference names them. `ThisApplication` and `ThisServer` (the Inventor Application) get hover and highlighting but no member list.
+
 ## [1.7.0] - 2026-10-03
 
 ### Added

@@ -3,6 +3,7 @@
 // Run: bun run grammar   (test/grammar.test.ts fails when the file is stale)
 import { writeFileSync } from "fs";
 import { join } from "path";
+import { ILOGIC_OBJECTS } from "../src/ilogicApi";
 import { KEYWORD_GROUPS } from "../src/keywords";
 
 export const GRAMMAR_PATH = join(import.meta.dir, "..", "syntaxes", "ilogicvb.tmLanguage.json");
@@ -16,6 +17,7 @@ export function buildGrammar(): object {
         patterns: [
             { include: "#comments" },
             { include: "#strings" },
+            { include: "#ilogic" },
             { include: "#keywords" },
             { include: "#numbers" },
             { include: "#operators" },
@@ -29,6 +31,11 @@ export function buildGrammar(): object {
                 begin: '"',
                 end: '"',
                 patterns: [{ name: "constant.character.escape.ilogicvb", match: '""' }],
+            },
+            // Predefined iLogic objects (ThisDoc, Logger, ...): as written, not after a "."
+            ilogic: {
+                name: "support.class.ilogicvb",
+                match: "(?<![\\w.])(" + ILOGIC_OBJECTS.map((o) => o.name).sort((a, b) => b.length - a.length).join("|") + ")\\b",
             },
             keywords: {
                 patterns: KEYWORD_GROUPS.map((group) => ({

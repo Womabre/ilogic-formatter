@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { format, FormatOptions, formatRange } from "./formatter";
+import { BlockProblem, checkBlocks, format, FormatOptions, formatRange } from "./formatter";
 
 /** The editor's indentation for a file, as VS Code passes it to formatters. */
 interface EditorIndent {
@@ -98,6 +98,65 @@ export function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration("ilogicFormatter.formatVbFiles")) updateVbRegistration();
         }),
         { dispose: () => vbRegistration?.dispose() }
+    );
+
+    // ── Warnings for unbalanced blocks (End If without If, unclosed Sub, ...) ──
+    const diagnostics = vscode.languages.createDiagnosticCollection("ilogic-formatter");
+    const pending = new Map<string, ReturnType<typeof setTimeout>>();
+
+    /** Same files the formatter handles, unless warnings are switched off. */
+    function shouldCheck(document: vscode.TextDocument): boolean {
+        const config = vscode.workspace.getConfiguration("ilogicFormatter", document);
+        if (!config.get("warnUnbalancedBlocks", true)) return false;
+        if (document.languageId === "ilogicvb" || /\.ilogicvb$/i.test(document.fileName)) return true;
+        return document.languageId === "vb" && vscode.workspace.getConfiguration("ilogicFormatter").get("formatVbFiles", true);
+    }
+
+    function toDiagnostic(document: vscode.TextDocument, problem: BlockProblem): vscode.Diagnostic {
+        const line = document.lineAt(Math.min(problem.line, document.lineCount - 1));
+        const range = new vscode.Range(line.lineNumber, line.firstNonWhitespaceCharacterIndex, line.lineNumber, line.text.length);
+        const diagnostic = new vscode.Diagnostic(range, problem.message, vscode.DiagnosticSeverity.Warning);
+        diagnostic.source = "iLogic Formatter";
+        if (problem.relatedLine !== undefined && problem.relatedLine < document.lineCount) {
+            diagnostic.relatedInformation = [new vscode.DiagnosticRelatedInformation(
+                new vscode.Location(document.uri, document.lineAt(problem.relatedLine).range), "closed here")];
+        }
+        return diagnostic;
+    }
+
+    function updateDiagnostics(document: vscode.TextDocument) {
+        if (!shouldCheck(document)) {
+            diagnostics.delete(document.uri);
+            return;
+        }
+        const problems = checkBlocks(document.getText(), getOptions(document));
+        diagnostics.set(document.uri, problems.map((p) => toDiagnostic(document, p)));
+    }
+
+    /** Re-check shortly after typing stops, not on every keystroke. */
+    function scheduleDiagnostics(document: vscode.TextDocument) {
+        const key = document.uri.toString();
+        clearTimeout(pending.get(key));
+        pending.set(key, setTimeout(() => {
+            pending.delete(key);
+            updateDiagnostics(document);
+        }, 300));
+    }
+
+    vscode.workspace.textDocuments.forEach(updateDiagnostics);
+    context.subscriptions.push(
+        diagnostics,
+        vscode.workspace.onDidOpenTextDocument(updateDiagnostics),
+        vscode.workspace.onDidChangeTextDocument((e) => scheduleDiagnostics(e.document)),
+        vscode.workspace.onDidCloseTextDocument((document) => {
+            clearTimeout(pending.get(document.uri.toString()));
+            pending.delete(document.uri.toString());
+            diagnostics.delete(document.uri);
+        }),
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration("ilogicFormatter")) vscode.workspace.textDocuments.forEach(updateDiagnostics);
+        }),
+        { dispose: () => pending.forEach((timer) => clearTimeout(timer)) }
     );
 
     // "iLogic: Format iLogic Rule" always uses this formatter, whichever

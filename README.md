@@ -8,6 +8,7 @@ A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` fil
 - **Keyword casing** — Normalizes VB.NET keywords to their canonical casing (`dim` → `Dim`, `if` → `If`, `integer` → `Integer`, etc.)
 - **Blank line normalization** — Collapses multiple consecutive blank lines and optionally inserts a blank line after `End Sub` / `End Function`
 - **Comment formatting** — Ensures a space after the comment apostrophe (`'comment` → `' comment`)
+- **Block warnings** — flags `End If` without `If`, a `Sub` or `If` that is never closed, and `Else`/`Case`/`Catch` outside their block, as you type
 - **Syntax highlighting** — keywords, types, constants, strings, comments and numbers in `.iLogicVb` files. The keyword lists are generated from the same list the formatter uses for casing (`bun run grammar`)
 
 ## Usage
@@ -32,6 +33,7 @@ All settings are under `ilogicFormatter.*` in VS Code settings:
 | `normalizeComments`   | `true`  | Space after comment apostrophe    |
 | `normalizeUnicode`    | `true`  | ASCII for lookalike characters in code (strings and comments untouched) |
 | `formatVbFiles`       | `true`  | Also format `.vb` files           |
+| `warnUnbalancedBlocks` | `true` | Warnings for unbalanced blocks |
 
 Example `settings.json`:
 
@@ -75,7 +77,8 @@ Open this folder in VS Code and press <kbd>F5</kbd>. It compiles the extension a
    - `<DebuggerStepThrough()> Private Sub DoWork` indents its body.
 2. **Format Selection:** undo, select the lines between `Sub main()` and `End Sub`, and press <kbd>Ctrl</kbd>+<kbd>K</kbd> <kbd>Ctrl</kbd>+<kbd>F</kbd>. The lines get the indentation of the code around them, and nothing outside the selection changes.
 3. **Format on paste:** paste a few unindented lines inside `DoWork`. They land at the body indentation.
-4. **`.vb` opt-out:** `Sample.vb` formats by default. Set `ilogicFormatter.formatVbFiles` to `false` and Format Document no longer offers this formatter for it.
+4. **Block warnings:** open `Unbalanced Rule.iLogicVb`. The Problems panel shows two warnings: the `If` on line 6 is not closed before `End Sub`, and the `End If` on line 13 has no `If`. Fix them and the warnings go away.
+5. **`.vb` opt-out:** `Sample.vb` formats by default. Set `ilogicFormatter.formatVbFiles` to `false` and Format Document no longer offers this formatter for it.
 
 ## Notes
 

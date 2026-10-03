@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-03
+
+### Added
+
+- Warnings for unbalanced blocks, updated as you type: a closer without an opener (`End If` with no `If`), a closer that skips an open block (`End Sub` while an `If` is still open, reported at the `If`), `Else`/`ElseIf`/`Case`/`Catch`/`Finally` outside their block, and blocks never closed. `#If` directives are checked separately, and each `#If`/`#Else` branch is checked from the same starting state. Shown for the same files the formatter handles; turn off with `ilogicFormatter.warnUnbalancedBlocks`.
+- `checkBlocks(text)` in the formatter module returns these problems with line numbers.
+
+### Fixed
+
+- Formatting settings are declared as language-overridable, so `"[ilogicvb]": { "ilogicFormatter.indentSize": 2 }` works and VS Code no longer logs a warning for every settings read.
+
 ## [1.3.1] - 2026-10-03
 
 ### Fixed

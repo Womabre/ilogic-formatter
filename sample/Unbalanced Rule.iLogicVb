@@ -1,0 +1,14 @@
+' F5 check: this rule has two block mistakes. The Problems panel should show
+' "If is not closed before the End Sub on line 9" (at the If on line 6) and
+' "End If has no matching If" (line 13).
+Sub Main()
+Dim x As Integer = 1
+If x > 0 Then
+Logger.Info("positive")
+' the End If for the If above is missing
+End Sub
+
+Sub Helper()
+Logger.Info("helper")
+End If
+End Sub

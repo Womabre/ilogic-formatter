@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter for Autodesk Inventor iLogic rules (.iLogicVb files)",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "publisher": "Womabre",
   "icon": "icon.png",
   "repository": {
@@ -75,7 +75,8 @@
           "default": null,
           "minimum": 1,
           "maximum": 16,
-          "description": "Number of spaces per indentation level. Leave empty (null) to use the editor's Tab Size for the file."
+          "description": "Number of spaces per indentation level. Leave empty (null) to use the editor's Tab Size for the file.",
+          "scope": "language-overridable"
         },
         "ilogicFormatter.useTabs": {
           "type": [
@@ -83,39 +84,52 @@
             "null"
           ],
           "default": null,
-          "description": "Use tabs instead of spaces for indentation. Leave empty (null) to follow the editor's Insert Spaces setting for the file."
+          "description": "Use tabs instead of spaces for indentation. Leave empty (null) to follow the editor's Insert Spaces setting for the file.",
+          "scope": "language-overridable"
         },
         "ilogicFormatter.maxBlankLines": {
           "type": "number",
           "default": 1,
           "description": "Maximum number of consecutive blank lines to allow.",
           "minimum": 0,
-          "maximum": 100
+          "maximum": 100,
+          "scope": "language-overridable"
         },
         "ilogicFormatter.blankLineAfterBlock": {
           "type": "boolean",
           "default": true,
-          "description": "Insert a blank line after End Sub / End Function / End Property."
+          "description": "Insert a blank line after End Sub / End Function / End Property.",
+          "scope": "language-overridable"
         },
         "ilogicFormatter.normalizeKeywords": {
           "type": "boolean",
           "default": true,
-          "description": "Normalize VB.NET keyword casing (e.g. dim → Dim, if → If)."
+          "description": "Normalize VB.NET keyword casing (e.g. dim → Dim, if → If).",
+          "scope": "language-overridable"
         },
         "ilogicFormatter.normalizeComments": {
           "type": "boolean",
           "default": true,
-          "description": "Ensure a space after the comment apostrophe (e.g. 'comment → ' comment)."
+          "description": "Ensure a space after the comment apostrophe (e.g. 'comment → ' comment).",
+          "scope": "language-overridable"
         },
         "ilogicFormatter.normalizeUnicode": {
           "type": "boolean",
           "default": true,
-          "description": "Replace lookalike Unicode characters in code with their ASCII equivalents (e.g. en dash → hyphen, curly quote delimiters → straight quotes). String literals and comment text are never changed."
+          "description": "Replace lookalike Unicode characters in code with their ASCII equivalents (e.g. en dash → hyphen, curly quote delimiters → straight quotes). String literals and comment text are never changed.",
+          "scope": "language-overridable"
         },
         "ilogicFormatter.formatVbFiles": {
           "type": "boolean",
           "default": true,
-          "description": "Also format .vb files. Turn off if you work on regular VB.NET projects and want another formatter for them."
+          "description": "Also format .vb files. Turn off if you work on regular VB.NET projects and want another formatter for them.",
+          "scope": "window"
+        },
+        "ilogicFormatter.warnUnbalancedBlocks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show warnings for unbalanced blocks: End If without If, a Sub or If that is never closed, Else or Case outside its block.",
+          "scope": "language-overridable"
         }
       }
     }

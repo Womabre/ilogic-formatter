@@ -134,8 +134,129 @@ export function formatRange(text: string, startLine: number, endLine: number, op
     return result.join("\n");
 }
 
+/** A block structure problem: a closer without an opener, or a block that never closes. */
+export interface BlockProblem {
+    /** 0-based line of the problem */
+    line: number;
+    message: string;
+    /** 0-based line of the other end (the opener, or the line that exposed it) */
+    relatedLine?: number;
+}
+
+/**
+ * Finds unbalanced blocks: End If without If, End Sub while an If is still
+ * open, Else outside an If, Case outside a Select Case, blocks never closed.
+ * Uses the same classification as the formatter, so it sees the code the
+ * same way formatting does.
+ */
+export function checkBlocks(text: string, options: FormatOptions = {}): BlockProblem[] {
+    const code = new BlockChecker();
+    const directives = new BlockChecker();
+    formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }, { code, directives, branchStarts: [] });
+    return [...code.finish(), ...directives.finish()].sort((a, b) => a.line - b.line);
+}
+
+/**
+ * Tracks open blocks the way the compiler pairs them. A closer pops back to
+ * its matching opener and reports every block it skips, so one missing
+ * End If gives one warning instead of a cascade.
+ */
+class BlockChecker {
+    private stack: { keyword: string; line: number }[] = [];
+    private problems: BlockProblem[] = [];
+
+    open(keyword: string, line: number): void {
+        this.stack.push({ keyword, line });
+    }
+
+    /**
+     * "End If", "Next", ...: closes the innermost block of one of `keywords`
+     * (End Sub closes a Sub lambda or a Sub, whichever is innermost). The last
+     * keyword names the block in messages.
+     */
+    close(keywords: string[], closer: string, line: number): void {
+        const match = this.find(keywords);
+        if (match < 0) {
+            this.problems.push({ line, message: `${closer} has no matching ${blockName(keywords[keywords.length - 1])}` });
+            return;
+        }
+        this.reportSkipped(match, closer, line);
+        this.stack.length = match;
+    }
+
+    /** "Else", "Case", "Catch", ...: must sit directly inside one of `keywords`. */
+    middle(keywords: string[], statement: string, line: number): void {
+        const match = this.find(keywords);
+        if (match < 0) {
+            this.problems.push({ line, message: `${statement} has no matching ${blockName(keywords[0])}` });
+            return;
+        }
+        this.reportSkipped(match, statement, line);
+        this.stack.length = match + 1;
+    }
+
+    /** The open blocks, to rewind to at #Else (each #If branch starts from the same state). */
+    snapshot(): { keyword: string; line: number }[] {
+        return [...this.stack];
+    }
+
+    restore(snapshot: { keyword: string; line: number }[]): void {
+        this.stack = [...snapshot];
+    }
+
+    finish(): BlockProblem[] {
+        for (const open of this.stack) {
+            this.problems.push({ line: open.line, message: `${blockName(open.keyword)} is never closed` });
+        }
+        this.stack = [];
+        return this.problems;
+    }
+
+    private find(keywords: string[]): number {
+        for (let k = this.stack.length - 1; k >= 0; k--) {
+            if (keywords.includes(this.stack[k].keyword)) return k;
+        }
+        return -1;
+    }
+
+    private reportSkipped(match: number, statement: string, line: number): void {
+        for (const open of this.stack.slice(match + 1)) {
+            this.problems.push({
+                line: open.line,
+                message: `${blockName(open.keyword)} is not closed before the ${statement} on line ${line + 1}`,
+                relatedLine: line,
+            });
+        }
+    }
+}
+
+const BLOCK_NAMES: Record<string, string> = { select: "Select Case", lambda_sub: "Sub lambda", lambda_function: "Function lambda" };
+
+function blockName(keyword: string): string {
+    const directive = keyword.startsWith("#") ? "#" : "";
+    const word = keyword.replace(/^#/, "");
+    return directive + (BLOCK_NAMES[word] ?? VB_KEYWORDS[word] ?? word);
+}
+
+/** The statement as written in canonical casing, for messages ("end if" → "End If"). */
+function statementName(statement: string): string {
+    const s = stripAttributes(statement).trim();
+    const directive = s.startsWith("#") ? "#" : "";
+    const words = (s.match(/[a-z][a-z0-9_]*/g) ?? []).slice(0, 2);
+    const first = words[0] ?? "";
+    const shown = first === "end" || first === "select" || (first === "case" && words[1] === "else") ? words : [first];
+    return directive + shown.map((w) => VB_KEYWORDS[w] ?? w).join(" ");
+}
+
+interface Checkers {
+    code: BlockChecker;
+    directives: BlockChecker;
+    /** Code-block state at each open #If, innermost last */
+    branchStarts: { keyword: string; line: number }[][];
+}
+
 /** Runs the formatter over every line; entry i holds the output lines for input line i (0, 1 or 2). */
-function formatLines(lines: string[], opts: Required<FormatOptions>): string[][] {
+function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: Checkers): string[][] {
     const out: string[][] = lines.map(() => []);
     // Classification text per line, computed once (used by lookaheads)
     const textCache: (string | undefined)[] = [];
@@ -246,7 +367,8 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
             : classifyLine(headStatement, nextNorm, innermostBlock(stack));
 
         // ── Pre-line dedent ──────────────────────────────────────────────────────
-        const preDedent = (c: LineClass): (StackEntry & { kind: "lambda" }) | null => {
+        const preDedent = (c: LineClass, statement: string): (StackEntry & { kind: "lambda" }) | null => {
+            if (checkers) checkStatement(checkers, c, statement, i);
             switch (c) {
                 case "closer": {
                     const top = stack.length > 0 ? stack[stack.length - 1] : null;
@@ -289,7 +411,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
             }
             return null;
         };
-        const closedLambda = preDedent(cls);
+        const closedLambda = preDedent(cls, headStatement);
 
         // ── Emit line ────────────────────────────────────────────────────────────
         const continuationExtra = isContinuation ? 1 : 0;
@@ -317,6 +439,16 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
 
         // ── Post-line indent ─────────────────────────────────────────────────────
         const postIndent = (c: LineClass, statement: string, extra: number) => {
+            if (checkers) {
+                const checker = stripAttributes(statement).startsWith("#") ? checkers.directives : checkers.code;
+                if (c === "opener") {
+                    const keyword = blockKeyword(statement);
+                    if (keyword === "#if") checkers.branchStarts.push(checkers.code.snapshot());
+                    checker.open(keyword, i);
+                }
+                else if (c === "lambda") checker.open("lambda_" + (lambdaKeyword(statement) ?? "sub"), i);
+                else if (c === "select") checker.open("select", i);
+            }
             switch (c) {
                 case "opener":
                     stack.push({ kind: "block", keyword: blockKeyword(statement) });
@@ -356,7 +488,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
         // The other statements on the line ("... : Catch : End Try")
         for (const statement of statements.slice(1)) {
             const c = classifyLine(statement, nextNorm, innermostBlock(stack));
-            const lambda = preDedent(c);
+            const lambda = preDedent(c, statement);
             if (lambda) indentLevel = lambda.outerLevel;
             postIndent(c, statement, 0);
         }
@@ -372,6 +504,41 @@ function formatLines(lines: string[], opts: Required<FormatOptions>): string[][]
     }
 
     return out;
+}
+
+/** Reports what a closing or middle statement (End If, Else, Case, ...) does to the open blocks. */
+function checkStatement(checkers: Checkers, c: LineClass, statement: string, line: number): void {
+    const s = stripAttributes(statement).trim();
+    const directive = s.startsWith("#");
+    const checker = directive ? checkers.directives : checkers.code;
+    const prefix = directive ? "#" : "";
+    const words = s.match(/[a-z][a-z0-9_]*/g) ?? [];
+    const name = statementName(statement);
+    switch (c) {
+        case "closer": {
+            if (words[0] === "next") return checker.close(["for"], name, line);
+            if (words[0] === "loop") return checker.close(["do"], name, line);
+            if (directive && words[1] === "if") checkers.branchStarts.pop();
+            // End Sub / End Function close a lambda of that kind too
+            const keyword = prefix + (words[1] ?? "");
+            const keywords = keyword === "sub" || keyword === "function" ? ["lambda_" + keyword, keyword] : [keyword];
+            return checker.close(keywords, name, line);
+        }
+        case "end-select":
+            return checker.close(["select"], name, line);
+        case "case":
+            return checker.middle(["select"], name, line);
+        case "else":
+            // #Else / #ElseIf: the code in this branch starts from the state at #If
+            if (directive) {
+                const start = checkers.branchStarts[checkers.branchStarts.length - 1];
+                if (start) checkers.code.restore(start);
+            }
+            return checker.middle([prefix + "if"], name, line);
+        case "catch":
+        case "finally":
+            return checker.middle(["try"], name, line);
+    }
 }
 
 // ── Classifier ───────────────────────────────────────────────────────────────
@@ -424,6 +591,10 @@ function stripAttributes(text: string): string {
 /** The statement's keyword: its first word that isn't a modifier (e.g. "class" for "MustInherit Class A"). */
 function blockKeyword(statement: string): string {
     const norm = stripAttributes(statement);
+    if (norm.startsWith("#")) {
+        const word = norm.match(/[a-z][a-z0-9_]*/)?.[0] ?? "";
+        return "#" + word;
+    }
     const words = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
     return words.find((w) => !MODIFIERS.has(w)) ?? words[0] ?? "";
 }
@@ -598,6 +769,13 @@ function endsAttribute(norm: string): boolean {
  * The line opens a multi-line lambda: a `Sub(...)` or `Function(...)` whose
  * parameter list (and optional "As Type") ends the line, so the body follows.
  */
+/** "sub" or "function" for the lambda a line opens, or null. */
+function lambdaKeyword(norm: string): string | null {
+    if (!isLambdaOpener(norm)) return null;
+    const headers = [...norm.matchAll(/\b(sub|function)\s*\(/g)];
+    return headers.length > 0 ? headers[headers.length - 1][1] : null;
+}
+
 function isLambdaOpener(norm: string): boolean {
     const header = /\b(?:sub|function)\s*\(/g;
     let m: RegExpExecArray | null;

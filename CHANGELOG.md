@@ -11,7 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
-- Repository only (not in the extension): CI workflow (tests and packaging on every push), release workflow (on a version tag: GitHub release with the `.vsix`, and Marketplace / Open VSX publishing when tokens are configured), and RELEASING.md.
+- Repository only (not in the extension): CI workflow (tests and packaging on every push), release workflow (on a version tag: GitHub release with the `.vsix`, Marketplace publishing with a token and Open VSX publishing by trusted publishing), and RELEASING.md.
 
 ## [1.10.0] - 2026-10-03
 

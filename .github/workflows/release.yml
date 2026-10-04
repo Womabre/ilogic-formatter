@@ -1,10 +1,8 @@
 # Release on a version tag (v1.2.3): test, package, create a GitHub release
-# with the .vsix attached, and publish:
-# - VS Code Marketplace: when the repository secret VSCE_PAT is set.
-# - Open VSX: by trusted publishing (no token; GitHub's OIDC identity), when the
-#   repository variable PUBLISH_OPENVSX is "true". Configure this repository and
-#   workflow file as a trusted publisher on open-vsx.org first (RELEASING.md).
-# Skipped publish steps leave the GitHub release in place, so tagging is safe.
+# with the .vsix attached, and publish to Open VSX by trusted publishing (no
+# token: GitHub's OIDC identity, registered for this repository and this
+# workflow file on open-vsx.org). The VS Code Marketplace is updated by hand
+# with the .vsix from the GitHub release; see RELEASING.md.
 name: Release
 
 on:
@@ -18,8 +16,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -41,9 +37,5 @@ jobs:
         with:
           files: ${{ env.VSIX }}
           body: See CHANGELOG.md for what changed.
-      - name: Publish to the VS Code Marketplace
-        if: env.VSCE_PAT != ''
-        run: bunx vsce publish --packagePath "$VSIX" --pat "$VSCE_PAT"
       - name: Publish to Open VSX (trusted publishing)
-        if: vars.PUBLISH_OPENVSX == 'true'
         run: bunx ovsx@1.2.0 publish "$VSIX" --trusted-publishing

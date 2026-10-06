@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter, outline, completion and convention hints for Autodesk Inventor iLogic rules (.iLogicVb)",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "publisher": "Womabre",
   "license": "MIT",
   "icon": "icon.png",

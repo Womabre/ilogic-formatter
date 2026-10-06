@@ -103,6 +103,12 @@ type StackEntry =
     | { kind: "select"; level: number };
 type LineClass = "opener" | "lambda" | "closer" | "end-select" | "select" | "case" | "else" | "catch" | "finally" | "none";
 
+/** Next j, i closes both loops; an ordinary closer closes one block. */
+function closingBlockCount(statement: string): number {
+    const next = /^next\b(.*)$/.exec(statement);
+    return next ? Math.max(1, next[1].split(",").filter((counter) => counter.trim() !== "").length) : 1;
+}
+
 export function format(text: string, options: FormatOptions = {}): string {
     const result = formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }).flat();
     while (result.length > 0 && result[result.length - 1] === "") {
@@ -303,6 +309,15 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
     let afterAttribute = false;
     const indentChar = opts.useTabs ? "\t" : " ".repeat(opts.indentSize);
     const stack: StackEntry[] = [];
+    // Conditional directives add visual indentation without becoming code
+    // blocks. Alternative branches start from the same code/continuation state.
+    const branches: {
+        indentLevel: number;
+        stack: StackEntry[];
+        parenDepth: number;
+        continuesStatement: boolean;
+        afterAttribute: boolean;
+    }[] = [];
 
     for (let i = 0; i < lines.length; i++) {
         const rawLine = lines[i];
@@ -364,6 +379,43 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
         // ── Classify (strings blanked, so their words never match keywords) ──────
         const norm = classificationText(casedTokens);
 
+        const emitLine = (level: number) => {
+            const indent = indentChar.repeat(Math.max(0, level));
+            const codePart = formattedCode.trimStart();
+            if (codePart === "" && formattedComment !== null) out[i].push(indent + formattedComment);
+            else if (formattedComment !== null) out[i].push(indent + codePart + " " + formattedComment);
+            else out[i].push(indent + codePart);
+        };
+
+        if (/^#(?:if|elseif|else|end\s+if)\b/.test(norm)) {
+            const c = classifyLine(norm);
+            if (checkers) checkStatement(checkers, c, norm, i);
+            if (c === "opener") {
+                emitLine(indentLevel + branches.length);
+                branches.push({ indentLevel, stack: [...stack], parenDepth, continuesStatement, afterAttribute });
+                if (checkers) {
+                    checkers.branchStarts.push(checkers.code.snapshot());
+                    checkers.directives.open("#if", i);
+                }
+            } else if (c === "else") {
+                const branch = branches[branches.length - 1];
+                if (branch) {
+                    indentLevel = branch.indentLevel;
+                    stack.splice(0, stack.length, ...branch.stack);
+                    parenDepth = branch.parenDepth;
+                    continuesStatement = branch.continuesStatement;
+                    afterAttribute = branch.afterAttribute;
+                }
+                emitLine(indentLevel + Math.max(0, branches.length - 1));
+            } else {
+                const branch = branches.pop();
+                // Keep the last branch's code blocks: they may close after
+                // #End If. Only the directive's visual indentation ends here.
+                emitLine((branch?.indentLevel ?? indentLevel) + branches.length);
+            }
+            continue;
+        }
+
         // Lookahead: the next line with code, for context-sensitive classification
         let nextNorm: string | null = null;
         for (let j = i + 1; j < lines.length; j++) {
@@ -407,9 +459,11 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
                         indentLevel = top.level - 1;
                         return top;
                     }
-                    indentLevel = Math.max(0, indentLevel - 1);
-                    for (let j = stack.length - 1; j >= 0; j--) {
-                        if (stack[j].kind === "block") { stack.splice(j, 1); break; }
+                    for (let k = 0; k < closingBlockCount(statement); k++) {
+                        indentLevel = Math.max(0, indentLevel - 1);
+                        for (let j = stack.length - 1; j >= 0; j--) {
+                            if (stack[j].kind === "block") { stack.splice(j, 1); break; }
+                        }
                     }
                     break;
                 }
@@ -445,17 +499,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
 
         // ── Emit line ────────────────────────────────────────────────────────────
         const continuationExtra = isContinuation ? 1 : 0;
-        const indent = indentChar.repeat(Math.max(0, indentLevel + continuationExtra));
-        const codePart = formattedCode.trimStart();
-        let outputLine: string;
-        if (codePart === "" && formattedComment !== null) {
-            outputLine = indent + formattedComment;
-        } else if (formattedComment !== null) {
-            outputLine = indent + codePart + " " + formattedComment;
-        } else {
-            outputLine = indent + codePart;
-        }
-        out[i].push(outputLine);
+        emitLine(indentLevel + continuationExtra + branches.length);
 
         // ── Track open parentheses for continuation-line indentation ─────────────
         if (closedLambda) {
@@ -546,7 +590,10 @@ function checkStatement(checkers: Checkers, c: LineClass, statement: string, lin
     const name = statementName(statement);
     switch (c) {
         case "closer": {
-            if (words[0] === "next") return checker.close(["for"], name, line);
+            if (words[0] === "next") {
+                for (let k = 0; k < closingBlockCount(s); k++) checker.close(["for"], name, line);
+                return;
+            }
             if (words[0] === "loop") return checker.close(["do"], name, line);
             if (directive && words[1] === "if") checkers.branchStarts.pop();
             // End Sub / End Function close a lambda of that kind too
@@ -692,10 +739,8 @@ function classifyLine(statement: string, nextNorm: string | null = null, contain
         // Only treat Property as a block opener when the next non-blank line
         // is Get, Set, or End Property.
         if (effectiveKeyword === "property") {
-            const nw = nextNorm ? nextNorm.match(/[a-z][a-z0-9_]*/g) ?? [] : [];
-            const nFirst = nw[0] ?? "";
-            const nTwo = nw.slice(0, 2).join(" ");
-            const isBlockProperty = nFirst === "get" || nFirst === "set" || nTwo === "end property";
+            const nextKeyword = nextNorm ? blockKeyword(nextNorm) : "";
+            const isBlockProperty = nextKeyword === "get" || nextKeyword === "set" || /^end\s+property\b/.test(nextNorm ?? "");
             if (!isBlockProperty) return "none";
         }
         return "opener";

@@ -5,8 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-06
+
 ### Fixed
 
+- The "Option Strict" quick fix no longer adds duplicate Option statements, which VB rejects. It now turns an existing `Option Strict Off` or `Option Explicit Off` into `On` where it stands, makes a bare `Option Strict` explicit, and inserts only the options that are missing. Comments, CRLF line endings, and look-alike text in comments or multiline strings are left alone.
+- A property whose first accessor has a modifier (`Private Set`, `Friend Get`, ...) is recognised as a block property again. Previously it was taken for an auto-property, giving a false "End Property has no matching Property" warning and wrong indentation inside the property.
+- Alternative `#If` / `#Else` branches each start from the same indentation. When every branch opened a block (for example two `Sub` signatures), the second branch and everything after it were indented one level too deep.
+- `Next j, i` closes every listed loop. Previously it closed only the inner `For`, giving a false "For is not closed" warning and over-indenting the rest of the block.
+- `ilogic-format --write`: a file that cannot be written (read-only, no permission) is reported per file, in the `--json` output too, and the run continues with the remaining files and exits with 2. Previously the CLI crashed with exit code 1, no JSON, and the remaining files unprocessed.
 - Lockfiles are no longer packaged. The 1.10.0 GitHub release asset contained a `bun.lock` created by `bun install` on the CI runner (the Open VSX copy did not).
 
 ### Changed

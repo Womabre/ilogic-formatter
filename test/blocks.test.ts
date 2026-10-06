@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { checkBlocks } from "../src/formatter";
+import { analyzeBlocks, checkBlocks, format } from "../src/formatter";
 
 const messages = (text: string) => checkBlocks(text).map((p) => `${p.line + 1}: ${p.message}`);
 
@@ -45,6 +45,41 @@ describe("checkBlocks", () => {
         expect(messages("Sub A()\n#If X Then\nIf a Then\n#Else\nIf b Then\n#End If\nc()\nEnd If\nEnd Sub\n")).toEqual([]);
         expect(messages("#If X Then\nSub A()\nEnd Sub\n")).toEqual(["1: #If is never closed"]);
         expect(messages("Sub A()\n#End If\nEnd Sub\n")).toEqual(["2: #End If has no matching #If"]);
+    });
+
+    test("conditional directives preserve enclosing Select and lambda indentation", () => {
+        const expected = [
+            "Sub Main()",
+            "    Select Case x",
+            "        #If A Then",
+            "            Case 1",
+            "                Dim f = Sub()",
+            "                    y()",
+            "                End Sub",
+            "        #Else",
+            "            Case 2",
+            "                Dim f = Sub()",
+            "                    z()",
+            "                End Sub",
+            "        #End If",
+            "        Case Else",
+            "            x()",
+            "    End Select",
+            "End Sub",
+            "",
+        ].join("\n");
+        expect(format(expected)).toBe(expected);
+        expect(messages(expected)).toEqual([]);
+    });
+
+    test("Next with multiple counters closes and spans every loop", () => {
+        const text = "Sub A()\nFor i = 1 To 3\nFor j = 1 To 3\nx()\nNext j, i\ny()\nEnd Sub\n";
+        expect(messages(text)).toEqual([]);
+        expect(analyzeBlocks(text).spans.filter((s) => s.keyword === "for")).toEqual([
+            { keyword: "for", start: 1, end: 4, middles: [] },
+            { keyword: "for", start: 2, end: 4, middles: [] },
+        ]);
+        expect(messages("For i = 1 To 3\nNext i, j\n")).toEqual(["2: Next has no matching For"]);
     });
 
     test("every fixture's formatted output is free of block problems", () => {

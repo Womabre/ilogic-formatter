@@ -1,0 +1,18 @@
+Class C
+#If A Then
+Sub M()
+#ElseIf B Then
+Sub M(x As Integer)
+#Else
+#If C Then
+Sub M(x As String)
+#Else
+Sub M(x As Double)
+#End If
+#End If
+y = 2
+End Sub
+Sub N()
+z = 3
+End Sub
+End Class

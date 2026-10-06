@@ -208,7 +208,15 @@ function main(argv: string[]): number {
             }
         }
         if (args.write && changed) {
-            writeFileSync(path, text);
+            try {
+                writeFileSync(path, text);
+            } catch (e) {
+                ioError = true;
+                result.error = (e as Error).message;
+                results.push(result);
+                if (!args.json) process.stderr.write(`ilogic-format: ${path}: ${(e as Error).message}\n`);
+                continue;
+            }
             result.written = true;
             if (!args.json) process.stdout.write(`formatted: ${path}\n`);
         }

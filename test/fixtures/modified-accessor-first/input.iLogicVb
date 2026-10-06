@@ -1,0 +1,21 @@
+Class C
+Public Property P As Integer
+Private Set(value As Integer)
+x = value
+End Set
+Get
+Return x
+End Get
+End Property
+Public Property Q As Integer
+Get
+Return x
+End Get
+Private Set(value As Integer)
+x = value
+End Set
+End Property
+Sub M()
+x = 1
+End Sub
+End Class

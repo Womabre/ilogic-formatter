@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -40,6 +40,33 @@ describe("ilogic-format", () => {
         expect(run(["--write", path]).code).toBe(0);
         expect(readFileSync(path, "utf8")).toBe("﻿" + clean.replace(/\n/g, "\r\n"));
         expect(run(["--check", path]).code).toBe(0); // and it is now stable
+    });
+
+    test.skipIf(process.platform === "win32" || process.getuid?.() === 0)("write errors produce JSON, exit 2 and do not skip later files", () => {
+        const bad = file("write-error/a.iLogicVb", messy);
+        const good = file("write-error/b.iLogicVb", messy);
+        chmodSync(bad, 0o444);
+        try {
+            const r = run(["--write", "--json", bad, good]);
+            expect(r.code).toBe(2);
+            expect(r.err).toBe("");
+            const output = JSON.parse(r.out);
+            expect(output.results[0]).toMatchObject({ path: bad, error: expect.stringContaining("EACCES") });
+            expect(output.results[0].written).toBeUndefined();
+            expect(output.results[1]).toEqual({ path: good, written: true });
+            expect(output.summary).toMatchObject({ files: 2, written: 1, errors: 1 });
+            expect(readFileSync(bad, "utf8")).toBe(messy);
+            expect(readFileSync(good, "utf8")).toBe(clean);
+
+            writeFileSync(good, messy);
+            const plain = run(["--write", bad, good]);
+            expect(plain.code).toBe(2);
+            expect(plain.err).toContain(`ilogic-format: ${bad}:`);
+            expect(plain.out).toBe(`formatted: ${good}\n`);
+            expect(readFileSync(good, "utf8")).toBe(clean);
+        } finally {
+            chmodSync(bad, 0o644);
+        }
     });
 
     test("--lint reports block problems and hints, exit 1", () => {

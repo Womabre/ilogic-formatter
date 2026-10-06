@@ -3,6 +3,7 @@ import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsIn
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
 import { hoverAt, memberMarkdown, objectMarkdown, suggestionsFor } from "./completion";
 import { lint, LintRule } from "./lint";
+import { optionStrictEdits } from "./quickFixes";
 
 const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
     class: vscode.SymbolKind.Class,
@@ -311,12 +312,11 @@ export function activate(context: vscode.ExtensionContext) {
                 if (diagnostic.source !== "iLogic conventions") continue;
                 const rule = String(diagnostic.code) as LintRule;
                 if (rule === "option-strict") {
-                    const text = document.getText();
-                    const missing = ["Option Strict On", "Option Explicit On"]
-                        .filter((o) => !new RegExp("^\\s*" + o.replace(/ On$/, "") + "\\s+On\\b", "im").test(text));
-                    const fix = new vscode.CodeAction("Add " + missing.join(" and "), vscode.CodeActionKind.QuickFix);
+                    const fix = new vscode.CodeAction("Enable Option Strict and Option Explicit", vscode.CodeActionKind.QuickFix);
                     fix.edit = new vscode.WorkspaceEdit();
-                    fix.edit.insert(document.uri, new vscode.Position(0, 0), missing.join("\n") + "\n");
+                    for (const edit of optionStrictEdits(document.getText())) {
+                        fix.edit.replace(document.uri, new vscode.Range(edit.line, edit.start, edit.line, edit.end), edit.text);
+                    }
                     fix.diagnostics = [diagnostic];
                     fix.isPreferred = true;
                     actions.push(fix);

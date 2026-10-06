@@ -1,0 +1,13 @@
+Sub Main()
+    For i = 1 To 3
+        For j = 1 To 3
+            x()
+    Next j, i
+    y = 2
+    For Each item In items
+        For k = 1 To 3
+            For l = 1 To 3
+                z()
+    Next l, k, item
+    y = 3
+End Sub

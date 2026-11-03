@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Repository only (not in the extension): the release workflow also publishes to the VS Code Marketplace by trusted publishing, so a version tag now updates all three places. RELEASING.md describes the setup.
+
 ## [1.10.1] - 2026-10-06
 
 ### Fixed

@@ -1,8 +1,8 @@
 # Release on a version tag (v1.2.3): test, package, create a GitHub release
-# with the .vsix attached, and publish to Open VSX by trusted publishing (no
-# token: GitHub's OIDC identity, registered for this repository and this
-# workflow file on open-vsx.org). The VS Code Marketplace is updated by hand
-# with the .vsix from the GitHub release; see RELEASING.md.
+# with the .vsix attached, and publish it to Open VSX and the VS Code
+# Marketplace by trusted publishing (no tokens: GitHub's OIDC identity,
+# registered for this repository and this workflow file on open-vsx.org and on
+# the Marketplace publisher page). See RELEASING.md.
 name: Release
 
 on:
@@ -11,7 +11,7 @@ on:
 
 permissions:
   contents: write   # create the GitHub release
-  id-token: write   # OIDC token for Open VSX trusted publishing
+  id-token: write   # OIDC token for Open VSX and Marketplace trusted publishing
 
 jobs:
   release:
@@ -39,3 +39,5 @@ jobs:
           body: See CHANGELOG.md for what changed.
       - name: Publish to Open VSX (trusted publishing)
         run: bunx ovsx@1.2.0 publish "$VSIX" --trusted-publishing
+      - name: Publish to VS Code Marketplace (trusted publishing)
+        run: bunx @vscode/vsce@4.1.0 publish --packagePath "$VSIX" --oidc

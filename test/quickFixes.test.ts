@@ -37,6 +37,16 @@ describe("Option Strict quick fix", () => {
 
     test("does not mistake comments or multiline string contents for declarations", () => {
         const input = "' Option Strict On\nDim s = \"first\nOption Strict Off\nOption Explicit On\nlast\"\n";
-        expect(applyFix(input)).toBe("Option Strict On\nOption Explicit On\n" + input);
+        expect(applyFix(input)).toBe("' Option Strict On\nOption Strict On\nOption Explicit On\nDim s = \"first\nOption Strict Off\nOption Explicit On\nlast\"\n");
+    });
+
+    test("inserts below a header comment, above a doc comment, and next to an existing option", () => {
+        expect(applyFix("' Rule: Flange\n' Author: W\n\nImports System\nSub Main()\nEnd Sub\n"))
+            .toBe("' Rule: Flange\n' Author: W\n\nOption Strict On\nOption Explicit On\nImports System\nSub Main()\nEnd Sub\n");
+        expect(applyFix("' Header\n\n''' <summary>Entry</summary>\nSub Main()\nEnd Sub\n"))
+            .toBe("' Header\n\nOption Strict On\nOption Explicit On\n''' <summary>Entry</summary>\nSub Main()\nEnd Sub\n");
+        expect(applyFix("' Header\nImports System\nOption Explicit On\nx = 1\n"))
+            .toBe("' Header\nImports System\nOption Strict On\nOption Explicit On\nx = 1\n");
+        expect(applyFix("' only a comment\n")).toBe("Option Strict On\nOption Explicit On\n' only a comment\n");
     });
 });

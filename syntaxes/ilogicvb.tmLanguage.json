@@ -10,6 +10,12 @@
       "include": "#comments"
     },
     {
+      "include": "#directives"
+    },
+    {
+      "include": "#interpolated"
+    },
+    {
       "include": "#strings"
     },
     {
@@ -30,18 +36,57 @@
       "patterns": [
         {
           "name": "comment.line.apostrophe.ilogicvb",
-          "match": "'.*$"
+          "match": "['‘’＇].*$"
+        },
+        {
+          "name": "comment.line.rem.ilogicvb",
+          "match": "(?i)(?:^|(?<=:))\\s*REM(?=\\s|$).*$"
         }
       ]
     },
+    "directives": {
+      "name": "keyword.control.directive.ilogicvb",
+      "match": "(?i)^\\s*#\\s*(?:End\\s+(?:If|Region|ExternalSource)|ElseIf|If|Else|Region|Const|ExternalSource|Disable|Enable)\\b"
+    },
     "strings": {
       "name": "string.quoted.double.ilogicvb",
-      "begin": "\"",
-      "end": "\"",
+      "begin": "[\"“”＂]",
+      "end": "[\"“”＂](?![\"“”＂])",
       "patterns": [
         {
           "name": "constant.character.escape.ilogicvb",
-          "match": "\"\""
+          "match": "[\"“”＂][\"“”＂]"
+        }
+      ]
+    },
+    "interpolated": {
+      "name": "string.quoted.double.interpolated.ilogicvb",
+      "begin": "\\$[\"“”＂]",
+      "end": "[\"“”＂](?![\"“”＂])",
+      "patterns": [
+        {
+          "name": "constant.character.escape.ilogicvb",
+          "match": "[\"“”＂][\"“”＂]|\\{\\{|\\}\\}"
+        },
+        {
+          "name": "meta.interpolation.ilogicvb",
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.interpolation.begin.ilogicvb"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.interpolation.end.ilogicvb"
+            }
+          },
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
         }
       ]
     },
@@ -82,8 +127,24 @@
       ]
     },
     "numbers": {
-      "name": "constant.numeric.ilogicvb",
-      "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b"
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.ilogicvb",
+          "match": "(?i)&H[0-9A-F_]+(?:US|UI|UL|[SIL])?\\b"
+        },
+        {
+          "name": "constant.numeric.octal.ilogicvb",
+          "match": "(?i)&O[0-7_]+(?:US|UI|UL|[SIL])?\\b"
+        },
+        {
+          "name": "constant.numeric.binary.ilogicvb",
+          "match": "(?i)&B[01_]+(?:US|UI|UL|[SIL])?\\b"
+        },
+        {
+          "name": "constant.numeric.ilogicvb",
+          "match": "(?i)\\b\\d[\\d_]*(\\.\\d+)?(E[+-]?\\d+)?(?:US|UI|UL|[SILDFR])?\\b"
+        }
+      ]
     },
     "operators": {
       "name": "keyword.operator.ilogicvb",

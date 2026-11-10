@@ -529,7 +529,10 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
 
         // ── Emit line ────────────────────────────────────────────────────────────
         const continuationExtra = isContinuation ? 1 : 0;
-        emitLine(indentLevel + continuationExtra + branches.length);
+        // A label on its own line ("retry:") stands one level left of the code
+        // it marks, as Visual Studio draws it, so it is easy to find.
+        const labelOutdent = !isContinuation && isLabel(norm) ? 1 : 0;
+        emitLine(indentLevel + continuationExtra + branches.length - labelOutdent);
 
         // ── Track open parentheses for continuation-line indentation ─────────────
         if (closedLambda) {
@@ -884,6 +887,12 @@ const STATEMENT_ONLY = new RegExp("^(?:" + [
     "select\\s+case\\b",
     "if\\b.*\\bthen\\b", // an If statement; the If() operator never has Then
 ].join("|") + ")");
+
+/** A line label alone on its line: a name or line number, then ":". Keywords ("Else:") are statements. */
+function isLabel(norm: string): boolean {
+    const m = /^([a-z_]\w*|\d+):$/.exec(norm);
+    return m !== null && !(m[1] in VB_KEYWORDS);
+}
 
 function endsWithContinuation(norm: string): boolean {
     return CONTINUATION_END.test(norm.trimEnd());

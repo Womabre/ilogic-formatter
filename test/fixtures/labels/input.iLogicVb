@@ -1,0 +1,21 @@
+sub main()
+on error goto failed
+for i = 1 to 3
+retry:
+x = i
+if x > 2 then goto retry
+10:
+next
+exit sub
+failed:
+Logger.Error("x")
+' a keyword and a colon is a statement, and so is a name with code after it
+if a then
+b = 1
+else:
+c = 2
+end if
+count: d = 3
+end sub
+top:
+x = 1

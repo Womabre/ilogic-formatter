@@ -20,10 +20,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **Format iLogic Rule** and Format Document replace only the lines that change, so the cursor and folded regions outside them stay where they are. Previously the whole document was replaced.
 - The "Log the exception" quick fix indents the inserted line with the file's indentation settings instead of always four spaces.
 - Formatting a file with a very long run of comment lines no longer slows down with the square of its length (20,000 comment lines: 620 ms before, 14 ms now).
+- The "Option Strict" quick fix puts the missing options below a header comment and next to an Option statement that is already there, instead of always on the first line of the file. A doc comment (`'''`) stays attached to the code under it.
+- Highlighting: a doubled quote inside a string (`"say ""hi"""`) is shown as one escape. It used to end the string and start a new one.
 - Folding, the outline, block warnings and convention hints share one analysis of the document after each edit instead of each running their own.
+
+### Added
+
+- Highlighting for `REM` comments, the `#If` / `#Region` / `#Const` directives, hexadecimal, octal and binary numbers (`&HFF`, `&O17`, `&B1010`) and number type suffixes (`10L`, `2.5F`), and the expressions inside `$"...{...}"` strings. Curly quotes and apostrophes, which VB reads as string and comment marks, are highlighted as such.
+- `{ }` and `[ ]` are bracket pairs in iLogic files: they are matched, auto-closed and can surround a selection, like `( )`.
 
 ### Changed
 
+- A label on its own line (`retry:`) is placed one level to the left of the code it marks, as Visual Studio does, instead of at the level of that code.
 - `.vb`, `.vbs`, `.bas` and `.vba` files use VS Code's own Visual Basic brackets, indentation and on-Enter rules again. The extension used to replace them with its iLogic rules for every Visual Basic file, also with `formatVbFiles` off. Formatting, folding, the outline and block warnings for `.vb` files are unchanged; `.iLogicVb` files keep the iLogic rules.
 - Repository only (not in the extension): dependencies are locked in `bun.lock` (replacing `package-lock.json`) and installed with `--frozen-lockfile`; `@types/vscode` is pinned to the oldest supported VS Code (1.85) so a newer API cannot slip in; tests and scripts are type-checked (`bun run typecheck`); `extension.ts` has tests of its own.
 - Repository only: the release workflow is split into a read-only build job and a publish job that alone holds the publishing rights and runs no repository code. Actions are pinned to a commit, and `ovsx` and `vsce` come from the lockfile.

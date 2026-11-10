@@ -82,6 +82,10 @@ describe("checkBlocks", () => {
         expect(messages("For i = 1 To 3\nNext i, j\n")).toEqual(["2: Next has no matching For"]);
     });
 
+    test("labels do not disturb block pairing", () => {
+        expect(checkBlocks("Sub Main()\nretry:\nIf a Then GoTo retry\n10:\nEnd Sub\n")).toEqual([]);
+    });
+
     test("a multi-line LINQ query is one statement, not a Select Case", () => {
         expect(checkBlocks("Dim q = From x In list\nWhere x > 1\nSelect x\ny = 1\n")).toEqual([]);
     });

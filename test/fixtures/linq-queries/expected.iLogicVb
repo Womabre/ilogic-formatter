@@ -1,0 +1,19 @@
+Sub main()
+    Dim big = from p In parts
+        where p.Mass > 10
+        order by p.Name
+        Select p.Name
+    Dim total = aggregate p In parts
+        into sum(p.Mass)
+    Dim pairs = from a In left
+        join b In right On a.Id equals b.Id
+        Select a, b
+    ' a clause word used as a name starts a new statement
+    Dim names = from p In parts Select p.Name
+    take = 5
+    group.Add(take)
+    Select Case take
+        Case 5
+            x = 1
+    End Select
+End Sub

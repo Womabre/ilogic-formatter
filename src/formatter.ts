@@ -1,4 +1,4 @@
-import { VB_KEYWORDS } from "./keywords";
+import { LEGACY_SPELLINGS, VB_KEYWORDS } from "./keywords";
 import { codeOnly, INITIAL_STATE, isDoubleQuote, isSingleQuote, LineState, Token, tokenizeLine } from "./tokenizer";
 
 export interface FormatOptions {
@@ -297,6 +297,10 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
     // Classification text per line, computed once (used by lookaheads)
     const textCache: (string | undefined)[] = [];
     const lineText = (j: number) => (textCache[j] ??= classificationText(tokenizeLine(lines[j].trim()).tokens));
+    // nextCode[j]: the first line at or after j that has code (lines.length when none),
+    // filled back to front so a long run of comment lines is not rescanned per line
+    const nextCode: number[] = new Array(lines.length + 1).fill(lines.length);
+    for (let j = lines.length - 1; j >= 0; j--) nextCode[j] = lineText(j) !== "" ? j : nextCode[j + 1];
     let indentLevel = 0;
     let consecutiveBlanks = 0;
     let parenDepth = 0;
@@ -307,6 +311,10 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
     // The previous code line closed an attribute ("<Attr> _"): the line after
     // it starts the real statement
     let afterAttribute = false;
+    // The statement so far is a LINQ query ("From x In xs"): its clauses
+    // (Where, Select, Order By, ...) continue it on the following lines
+    // without any continuation character
+    let inQuery = false;
     const indentChar = opts.useTabs ? "\t" : " ".repeat(opts.indentSize);
     const stack: StackEntry[] = [];
     // Conditional directives add visual indentation without becoming code
@@ -356,6 +364,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
         // ── Blank lines ─────────────────────────────────────────────────────────
         if (tokens.every((t) => t.text.trim() === "")) {
             continuesStatement = false;
+            inQuery = false;
             consecutiveBlanks++;
             if (consecutiveBlanks <= opts.maxBlankLines) {
                 out[i].push("");
@@ -417,11 +426,7 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
         }
 
         // Lookahead: the next line with code, for context-sensitive classification
-        let nextNorm: string | null = null;
-        for (let j = i + 1; j < lines.length; j++) {
-            const t = lineText(j);
-            if (t !== "") { nextNorm = t; break; }
-        }
+        const nextNorm: string | null = nextCode[i + 1] < lines.length ? lineText(nextCode[i + 1]) : null;
 
         // A continuation line is never the start of a statement, so it can only
         // open a multi-line lambda (e.g. "If(a, b, c)" here is the If operator).
@@ -431,8 +436,10 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
         // line ends a pending "_" or operator continuation, like a blank line.
         const startsStatement = STATEMENT_ONLY.test(norm);
         if (startsStatement) parenDepth = 0;
-        const isContinuation = !startsStatement &&
-            (parenDepth > 0 || (norm !== "" && continuesStatement && !afterAttribute));
+        const isContinuation: boolean = !startsStatement &&
+            (parenDepth > 0 || (norm !== "" && continuesStatement && !afterAttribute) || (inQuery && QUERY_CLAUSE.test(norm)));
+        // A comment-only line leaves the query state as it is
+        if (norm !== "") inQuery = (isContinuation && inQuery) || QUERY_START.test(norm);
         // A line can hold several statements separated by ":", e.g.
         // "Try : x = 1 : Catch : End Try". The line is drawn at the indent of its
         // first statement; every statement then updates the block state.
@@ -632,8 +639,11 @@ const MODIFIERS = new Set([
 const BLOCK_OPENERS = new Set([
     "for", "while", "do", "sub", "function", "property", "get", "set",
     "with", "using", "synclock", "try", "class", "interface", "structure",
-    "enum", "module", "namespace",
+    "enum", "module", "namespace", "operator",
 ]);
+const EVENT_ACCESSORS = new Set(["addhandler", "removehandler", "raiseevent"]);
+// "Custom Event X As EventHandler", after any modifiers
+const CUSTOM_EVENT = /^(?:[a-z]+\s+)*custom\s+event\b/;
 // Members that have no body when declared MustOverride or inside an Interface
 const MEMBER_KEYWORDS = new Set(["sub", "function", "property"]);
 
@@ -672,6 +682,7 @@ function blockKeyword(statement: string): string {
         const word = norm.match(/[a-z][a-z0-9_]*/)?.[0] ?? "";
         return "#" + word;
     }
+    if (CUSTOM_EVENT.test(norm)) return "event";
     const words = norm.match(/[a-z][a-z0-9_]*/g) ?? [];
     return words.find((w) => !MODIFIERS.has(w)) ?? words[0] ?? "";
 }
@@ -705,7 +716,8 @@ function classifyLine(statement: string, nextNorm: string | null = null, contain
         two === "end class" || two === "end interface" || two === "end structure" ||
         two === "end enum" || two === "end module" || two === "end namespace" ||
         two === "end with" || two === "end using" || two === "end synclock" ||
-        two === "end try" || two === "end while")
+        two === "end try" || two === "end while" || two === "end operator" || two === "end event" ||
+        two === "end addhandler" || two === "end removehandler" || two === "end raiseevent")
         return "closer";
 
     if (first === "next" || first === "loop") return "closer"; // "Next i" etc.
@@ -719,6 +731,12 @@ function classifyLine(statement: string, nextNorm: string | null = null, contain
     }
 
     const effectiveKeyword = blockKeyword(norm);
+
+    // A Custom Event has a body; an ordinary Event declaration does not.
+    // Its accessors look like AddHandler/RemoveHandler/RaiseEvent statements,
+    // and are blocks only directly inside the event.
+    if (effectiveKeyword === "event") return CUSTOM_EVENT.test(norm) ? "opener" : "none";
+    if (container === "event" && EVENT_ACCESSORS.has(first)) return "opener";
 
     // "Sub(" / "Function(" with no name is a lambda, not a declaration
     if (isLambdaOpener(norm)) return "lambda";
@@ -752,16 +770,29 @@ function classifyLine(statement: string, nextNorm: string | null = null, contain
 
 // Line endings after which VB continues the statement on the next line:
 // explicit " _", and the implicit-continuation tokens (comma, open bracket,
-// assignment/arithmetic/concatenation operators, logical keywords).
-const CONTINUATION_END = /(?:(?:^|\s)_|[,({=&+\-*\/\\^]|\b(?:andalso|orelse|and|or|xor|not|is|isnot|like|mod))$/;
+// member-access dot, assignment/arithmetic/comparison/concatenation operators,
+// logical keywords). A trailing ">" is left out: it also closes a multi-line
+// attribute ("<A(1)," / "B(2)>"), where the next line starts the declaration.
+const CONTINUATION_END = /(?:(?:^|\s)_|[,({=&+\-*\/\\^.<]|\b(?:andalso|orelse|and|or|xor|not|is|isnot|like|mod))$/;
+
+// LINQ: a query starts at "From x In" / "Aggregate x In"; the lines after it
+// that begin with a query clause belong to the same statement. A clause word
+// used as a name ("take = 5", "group.Add(x)") is not a clause.
+const QUERY_START = /\b(?:from|aggregate)\s+[a-z_][\w]*(?:\s+as\s+[^\s,]+)?\s+in\b/;
+const QUERY_CLAUSE = /^(?:where|select|order\s+by|group|join|let|skip|take|distinct|aggregate|from|into|on)\b(?!\s*(?:[.=(]|[-+*\/&^]=))/;
+
+const LEGACY_WORDS = new RegExp("\\b(?:" + Object.keys(LEGACY_SPELLINGS).join("|") + "|wend)\\b", "g");
 
 /**
  * The text the classifier reads: code only, strings blanked to "", lowercase,
- * and escaped identifiers ("[Property]", "[Date]") replaced by a plain name so
- * they are never taken for keywords.
+ * escaped identifiers ("[Property]", "[Date]") replaced by a plain name so
+ * they are never taken for keywords, and the one-word closers ("EndIf",
+ * "Wend") spelled out, so blocks pair the same way whether or not keyword
+ * casing has rewritten them.
  */
 function classificationText(tokens: Token[]): string {
-    return codeOnly(tokens).replace(/\[[^\]]*\]/g, "name").trim().toLowerCase();
+    return codeOnly(tokens).replace(/\[[^\]]*\]/g, "name").trim().toLowerCase()
+        .replace(LEGACY_WORDS, (word) => (word === "wend" ? "end while" : LEGACY_SPELLINGS[word].toLowerCase()));
 }
 
 /**
@@ -825,7 +856,7 @@ export function splitStatements(norm: string): string[] {
 
 // Keywords that can only begin a statement, never continue one
 const STATEMENT_ONLY = new RegExp("^(?:" + [
-    "end\\s+(?:if|sub|function|property|get|set|class|interface|structure|enum|module|namespace|with|using|synclock|try|while|select)\\b",
+    "end\\s+(?:if|sub|function|property|get|set|class|interface|structure|enum|module|namespace|with|using|synclock|try|while|select|operator|event|addhandler|removehandler|raiseevent)\\b",
     "(?:next|loop|else|elseif|case|catch|finally|dim|for|return|try|do|while|using|throw|exit)\\b",
     "select\\s+case\\b",
     "if\\b.*\\bthen\\b", // an If statement; the If() operator never has Then

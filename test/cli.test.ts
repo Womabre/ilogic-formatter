@@ -69,6 +69,37 @@ describe("ilogic-format", () => {
         }
     });
 
+    test("files that are not UTF-8 are reported and left byte for byte as they were", () => {
+        const ansi = join(dir, "enc", "ansi.iLogicVb");
+        const utf16 = join(dir, "enc", "utf16.iLogicVb");
+        mkdirSync(join(dir, "enc"), { recursive: true });
+        // Windows-1252: "Ø 20 mm °" inside a string
+        const ansiBytes = Buffer.concat([Buffer.from("sub main()\r\nx = \""), Buffer.from([0xd8, 0x20, 0xb0]), Buffer.from("\"\r\nend sub\r\n")]);
+        const utf16Bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("sub main()\r\nend sub\r\n", "utf16le")]);
+        writeFileSync(ansi, ansiBytes);
+        writeFileSync(utf16, utf16Bytes);
+        const good = file("enc/z.iLogicVb", messy);
+
+        const r = run(["--write", "--json", ansi, utf16, good]);
+        expect(r.code).toBe(2);
+        const output = JSON.parse(r.out);
+        expect(output.results[0]).toEqual({ path: ansi, error: expect.stringContaining("not valid UTF-8") });
+        expect(output.results[1]).toEqual({ path: utf16, error: expect.stringContaining("UTF-16") });
+        expect(output.results[2]).toEqual({ path: good, written: true });
+        expect(readFileSync(ansi).equals(ansiBytes)).toBe(true);
+        expect(readFileSync(utf16).equals(utf16Bytes)).toBe(true);
+
+        const check = run(["--check", ansi]);
+        expect(check.code).toBe(2);
+        expect(check.err).toContain("not valid UTF-8");
+    });
+
+    test("UTF-8 text beyond ASCII survives --write", () => {
+        const path = file("utf8.iLogicVb", 'sub main()\nx = "Ø 20 mm °"\nend sub\n');
+        expect(run(["--write", path]).code).toBe(0);
+        expect(readFileSync(path, "utf8")).toBe('Sub main()\n    x = "Ø 20 mm °"\nEnd Sub\n');
+    });
+
     test("--lint reports block problems and hints, exit 1", () => {
         const path = file("lint.iLogicVb", "Sub Main()\nEnd If\nEnd Sub\n");
         const r = run(["--lint", path]);

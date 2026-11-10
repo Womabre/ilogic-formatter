@@ -20,6 +20,12 @@ describe("lint", () => {
         expect(hits(S + 's = "MsgBox(1)"\n')).toEqual([]);
     });
 
+    test("message boxes after Then, Else and a colon", () => {
+        expect(hits(S + 'If a Then MsgBox("hi") Else MsgBox("no")\n')).toEqual(["2:10-16 msgbox", "2:28-34 msgbox"]);
+        expect(hits(S + 'x = "a: b" : MessageBox.Show("there") \' MsgBox(1)\n')).toEqual(["2:13-28 msgbox"]);
+        expect(hits(S + 'Foo(prompt:=MsgBox("x"))\n')).toEqual([]);
+    });
+
     test("empty Catch, also on one line; a comment does not count as handling", () => {
         expect(hits(S + "Try\nx()\nCatch\nEnd Try\n")).toEqual(["4:0-5 empty-catch"]);
         expect(hits(S + "Try\nx()\nCatch ex As Exception\n' ignore\nFinally\ny()\nEnd Try\n")).toEqual(["4:0-5 empty-catch"]);

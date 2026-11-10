@@ -18,7 +18,7 @@
       "flags": "i"
     },
     "decreaseIndentPattern": {
-      "pattern": "^\\s*(?:End\\s+(?:If|Sub|Function|Property|Get|Set|Class|Module|Structure|Interface|Enum|Namespace|Operator|Select|Try|While|With|Using|SyncLock)\\b|Next\\b|Loop\\b|Else\\b|ElseIf\\b|Case\\b|Catch\\b|Finally\\b|#Else\\b|#ElseIf\\b|#End\\s+If\\b)",
+      "pattern": "^\\s*(?:End\\s+(?:If|Sub|Function|Property|Get|Set|Class|Module|Structure|Interface|Enum|Namespace|Operator|Event|AddHandler|RemoveHandler|RaiseEvent|Select|Try|While|With|Using|SyncLock)\\b|Next\\b|Loop\\b|Wend\\b|Else\\b|ElseIf\\b|Case\\b|Catch\\b|Finally\\b|#Else\\b|#ElseIf\\b|#End\\s+If\\b)",
       "flags": "i"
     }
   },

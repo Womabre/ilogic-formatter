@@ -1,0 +1,12 @@
+sub main()
+dim s = doc.
+ComponentDefinition.
+Parameters
+dim smaller = a <
+b
+with doc
+.Save()
+.Close()
+end with
+x = 1
+end sub

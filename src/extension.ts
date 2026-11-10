@@ -4,6 +4,7 @@ import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
 import { hoverAt, memberMarkdown, objectMarkdown, suggestionsFor } from "./completion";
 import { lint, LintRule } from "./lint";
 import { optionStrictEdits } from "./quickFixes";
+import { minimalLineEdit } from "./edits";
 
 const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
     class: vscode.SymbolKind.Class,
@@ -64,13 +65,17 @@ export function activate(context: vscode.ExtensionContext) {
         };
     }
 
-    /** One edit replacing the whole document, or none when formatting changes nothing. */
+    /**
+     * One edit covering the lines formatting changes, or none when it changes
+     * nothing. Lines before and after the change are not touched, so the
+     * cursor and folded regions there stay put.
+     */
     function formatDocumentEdits(document: vscode.TextDocument, editor?: EditorIndent): vscode.TextEdit[] {
-        const text = document.getText();
-        const formatted = format(text, getOptions(document, editor));
-        if (formatted === text.replace(/\r\n/g, "\n")) return [];
-        const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(text.length));
-        return [vscode.TextEdit.replace(fullRange, formatted)];
+        const text = document.getText().replace(/\r\n/g, "\n");
+        const edit = minimalLineEdit(text, format(text, getOptions(document, editor)));
+        if (!edit) return [];
+        const range = new vscode.Range(edit.startLine, edit.startCharacter, edit.endLine, edit.endCharacter);
+        return [vscode.TextEdit.replace(range, edit.text)];
     }
 
     const documentProvider: vscode.DocumentFormattingEditProvider = {
@@ -326,7 +331,8 @@ export function activate(context: vscode.ExtensionContext) {
                     const m = /^(\s*)Catch(?:\s+(\w+)\s+As\s+[\w.]+)?\s*(?:'.*)?$/i.exec(line.text);
                     if (m) { // only a Catch on its own line; one-line Try...End Try is left to the user
                         const variable = m[2] ?? "ex";
-                        const unit = m[1].includes("\t") ? "\t" : "    ";
+                        const opts = getOptions(document, vscode.window.activeTextEditor?.document === document ? vscode.window.activeTextEditor.options : undefined);
+                        const unit = opts.useTabs ? "\t" : " ".repeat(opts.indentSize ?? 4);
                         const fix = new vscode.CodeAction("Log the exception", vscode.CodeActionKind.QuickFix);
                         fix.edit = new vscode.WorkspaceEdit();
                         if (!m[2]) fix.edit.replace(document.uri, new vscode.Range(line.lineNumber, m[1].length, line.lineNumber, m[1].length + 5), "Catch ex As Exception");
@@ -337,7 +343,9 @@ export function activate(context: vscode.ExtensionContext) {
                         actions.push(fix);
                     }
                 }
-                const off = new vscode.CodeAction(`Don't show "${rule}" hints in this workspace`, vscode.CodeActionKind.QuickFix);
+                // A single file opened without a folder has no workspace settings to write to
+                const where = vscode.workspace.workspaceFolders?.length ? "in this workspace" : "anywhere";
+                const off = new vscode.CodeAction(`Don't show "${rule}" hints ${where}`, vscode.CodeActionKind.QuickFix);
                 off.command = { command: "ilogicFormatter.disableHint", title: off.title, arguments: [rule] };
                 actions.push(off);
             }
@@ -349,7 +357,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand("ilogicFormatter.disableHint", async (rule: LintRule) => {
             const config = vscode.workspace.getConfiguration("ilogicFormatter");
             const current = config.get<LintRule[]>("disabledHints", []);
-            if (!current.includes(rule)) await config.update("disabledHints", [...current, rule], vscode.ConfigurationTarget.Workspace);
+            const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+            if (!current.includes(rule)) await config.update("disabledHints", [...current, rule], target);
         })
     );
 

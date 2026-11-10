@@ -82,6 +82,21 @@ describe("checkBlocks", () => {
         expect(messages("For i = 1 To 3\nNext i, j\n")).toEqual(["2: Next has no matching For"]);
     });
 
+    test("a multi-line LINQ query is one statement, not a Select Case", () => {
+        expect(checkBlocks("Dim q = From x In list\nWhere x > 1\nSelect x\ny = 1\n")).toEqual([]);
+    });
+
+    test("one-word closers pair up whether or not keywords are recased", () => {
+        const text = "If a Then\nWhile b\nWend\nEndIf\n";
+        expect(checkBlocks(text)).toEqual([]);
+        expect(checkBlocks(text, { normalizeKeywords: false })).toEqual([]);
+    });
+
+    test("Operator and Custom Event blocks", () => {
+        expect(checkBlocks("Class V\nShared Operator +(a As V, b As V) As V\nReturn a\nEnd Operator\nCustom Event E As EventHandler\nAddHandler(value As EventHandler)\nEnd AddHandler\nRemoveHandler(value As EventHandler)\nEnd RemoveHandler\nRaiseEvent(s As Object, e As EventArgs)\nEnd RaiseEvent\nEnd Event\nEnd Class\n")).toEqual([]);
+        expect(checkBlocks("Class V\nShared Operator +(a As V, b As V) As V\nEnd Class\n").map((p) => p.message)).toEqual(["Operator is not closed before the End Class on line 3"]);
+    });
+
     test("every fixture's formatted output is free of block problems", () => {
         const root = join(import.meta.dir, "fixtures");
         const dirty = readdirSync(root)

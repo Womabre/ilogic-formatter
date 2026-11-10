@@ -5,6 +5,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-11-10
+
+### Fixed
+
+- `ilogic-format`: a file that is not UTF-8 (ANSI / Windows-1252, UTF-16) is reported as an error and left untouched, exit code 2. Previously it was decoded loosely, and `--write` saved every non-ASCII character (`Ø`, `°`, `±`, ...) as the replacement character, with exit code 0. `--stdin` refuses such input the same way.
+- A LINQ query written over several lines (`From x In list` / `Where ...` / `Select x`) is one statement: its clauses are indented as continuation lines. Previously the `Select` line was taken for `Select Case`, which indented the rest of the file one level too deep and gave a false "Select Case is never closed" warning.
+- `EndIf`, `EndWhile` and the other one-word closers end their block when `normalizeKeywords` is off too. Previously they only worked because keyword casing rewrote them first; with casing off the rest of the file was indented and "If is never closed" was reported.
+- `While ... Wend` is a block: `Wend` closes the `While`.
+- `Operator ... End Operator` and `Custom Event ... End Event` with its `AddHandler` / `RemoveHandler` / `RaiseEvent` accessors are indented, folded, checked for balance and given their full range in the outline. Ordinary `Event` declarations and `AddHandler` statements are unchanged.
+- A line that ends in a member-access dot (`doc.`) or in `<` continues on the next line, which is now indented as a continuation.
+- The "MsgBox" hint also finds a message box after `Then`, `Else` or a `:` (`If done Then MsgBox("Ready")`), not only at the start of a line.
+- "Don't show this hint" works for a rule opened as a single file without a folder: it then saves to the user settings. Previously it tried to write workspace settings that do not exist and failed.
+- **Format iLogic Rule** and Format Document replace only the lines that change, so the cursor and folded regions outside them stay where they are. Previously the whole document was replaced.
+- The "Log the exception" quick fix indents the inserted line with the file's indentation settings instead of always four spaces.
+- Formatting a file with a very long run of comment lines no longer slows down with the square of its length (20,000 comment lines: 620 ms before, 14 ms now).
+
 ### Changed
 
 - Repository only (not in the extension): the release workflow also publishes to the VS Code Marketplace by trusted publishing, so a version tag now updates all three places. RELEASING.md describes the setup.

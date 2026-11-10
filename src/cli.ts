@@ -16,6 +16,7 @@ for *.iLogicVb files; add --include-vb to also pick up *.vb files.
 Modes (default: print the formatted rule to stdout; one file only)
   --check            List files that are not formatted; exit 1 if any
   --write            Format files in place (keeps CRLF line endings and BOM)
+                     Files must be UTF-8; others are reported and left alone
   --lint             Report unbalanced blocks and iLogic convention hints; exit 1 if any
   --stdin            Read a rule from stdin and print it formatted
 
@@ -112,6 +113,22 @@ function collectFiles(paths: string[], includeVb: boolean): string[] {
     return [...new Set(files)].sort();
 }
 
+/**
+ * Decodes a file as UTF-8, keeping a BOM as its first character. Throws for
+ * anything else (UTF-16, Windows-1252, ...): decoding those loosely would turn
+ * every non-ASCII character into U+FFFD, and --write would then save that.
+ */
+function decodeUtf8(bytes: Uint8Array): string {
+    if ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff)) {
+        throw new Error("is UTF-16; save it as UTF-8 first (left unchanged)");
+    }
+    try {
+        return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    } catch {
+        throw new Error("is not valid UTF-8 (probably ANSI / Windows-1252); save it as UTF-8 first (left unchanged)");
+    }
+}
+
 /** Formats a file's text, keeping its BOM and dominant line ending. */
 function formatFileText(raw: string, options: FormatOptions): { text: string; changed: boolean } {
     const bom = raw.startsWith("﻿") ? "﻿" : "";
@@ -160,7 +177,13 @@ function main(argv: string[]): number {
     }
 
     if (args.stdin) {
-        const raw = readFileSync(0, "utf8");
+        let raw: string;
+        try {
+            raw = decodeUtf8(readFileSync(0));
+        } catch (e) {
+            process.stderr.write(`ilogic-format: <stdin> ${(e as Error).message}\n`);
+            return 2;
+        }
         const found = args.lint ? findings(raw, "<stdin>", args.options) : [];
         if (args.json) process.stdout.write(JSON.stringify({ formatted: formatFileText(raw, args.options).text, findings: found }, null, 2) + "\n");
         else if (args.lint) printFindings("<stdin>", found);
@@ -187,7 +210,7 @@ function main(argv: string[]): number {
     for (const path of files) {
         let raw: string;
         try {
-            raw = readFileSync(path, "utf8");
+            raw = decodeUtf8(readFileSync(path));
         } catch (e) {
             ioError = true;
             results.push({ path, error: (e as Error).message });

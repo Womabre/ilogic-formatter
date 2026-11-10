@@ -1,0 +1,19 @@
+sub main()
+dim big = from p in parts
+where p.Mass > 10
+order by p.Name
+select p.Name
+dim total = aggregate p in parts
+into sum(p.Mass)
+dim pairs = from a in left
+join b in right on a.Id equals b.Id
+select a, b
+' a clause word used as a name starts a new statement
+dim names = from p in parts select p.Name
+take = 5
+group.Add(take)
+select case take
+case 5
+x = 1
+end select
+end sub

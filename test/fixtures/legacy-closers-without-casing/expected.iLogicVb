@@ -1,0 +1,6 @@
+If a Then
+    While b
+        x = 1
+    Wend
+EndIf
+y = 2

@@ -70,7 +70,7 @@ export const KEYWORD_GROUPS: { scope: string; words: string[] }[] = [
 ];
 
 // Old one-word spellings, rewritten to the two-word form VB.NET expects
-const LEGACY_SPELLINGS: Record<string, string> = {
+export const LEGACY_SPELLINGS: Record<string, string> = {
     endif: "End If",
     endwhile: "End While",
     endselect: "End Select",

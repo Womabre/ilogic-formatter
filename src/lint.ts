@@ -53,13 +53,17 @@ export function lint(text: string, disabled: LintRule[] = []): LintProblem[] {
                 column += token.text.length;
             }
         }
-        // MsgBox / MessageBox.Show as a statement: a notification, not a decision
-        if (on("msgbox")) {
-            const m = /^(\s*)(?:call\s+)?(msgbox|messagebox\.show)\s*\(/i.exec(codeOnly(l.tokens));
-            if (m && !l.inString) {
-                const start = l.raw.toLowerCase().indexOf(m[2].toLowerCase());
+        // MsgBox / MessageBox.Show as a statement: a notification, not a decision.
+        // A statement starts the line, or follows ":", Then or Else.
+        if (on("msgbox") && !l.inString) {
+            // Strings and the comment blanked out at the same length, so columns stay put
+            const masked = l.tokens.map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length))).join("");
+            const call = /(?:^|:|\b(?:then|else)\s)\s*(?:call\s+)?(msgbox|messagebox\.show)\s*\(/gi;
+            let m: RegExpExecArray | null;
+            while ((m = call.exec(masked)) !== null) {
+                const start = m.index + m[0].toLowerCase().lastIndexOf(m[1].toLowerCase());
                 problems.push({
-                    rule: "msgbox", severity: "information", line: i, start, end: start + m[2].length,
+                    rule: "msgbox", severity: "information", line: i, start, end: start + m[1].length,
                     message: "Use Logger (Info, Warn, Error, ...) for messages; keep message boxes for decisions the user must make.",
                 });
             }
@@ -72,7 +76,7 @@ export function lint(text: string, disabled: LintRule[] = []): LintProblem[] {
             const bounds = [...span.middles, span.end];
             for (let k = 0; k < span.middles.length; k++) {
                 const catchLine = span.middles[k];
-                if (!/^catch\b/.test(lastStatementStarting(all[catchLine].code, "catch"))) continue;
+                if (!/^catch\b/.test(statementStarting(all[catchLine].code, "catch"))) continue;
                 const next = bounds[k + 1];
                 if (!catchIsEmpty(all, catchLine, next)) continue;
                 const start = all[catchLine].raw.toLowerCase().indexOf("catch");
@@ -94,8 +98,8 @@ export function lint(text: string, disabled: LintRule[] = []): LintProblem[] {
     return problems.sort((a, b) => a.line - b.line || a.start - b.start);
 }
 
-/** The ":"-separated statement on the line that starts with `word` (or ""). */
-function lastStatementStarting(code: string, word: string): string {
+/** The first ":"-separated statement on the line that starts with `word` (or ""). */
+function statementStarting(code: string, word: string): string {
     return splitStatements(code).find((s) => s.startsWith(word)) ?? "";
 }
 

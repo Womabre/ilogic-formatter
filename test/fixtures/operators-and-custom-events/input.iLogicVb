@@ -1,0 +1,23 @@
+class Vec
+public shared operator +(a as Vec, b as Vec) as Vec
+return a
+end operator
+public shared widening operator ctype(v as Vec) as double
+return 0
+end operator
+public event Changed as EventHandler
+public custom event Moved as EventHandler
+addhandler(value as EventHandler)
+handlers.Add(value)
+end addhandler
+removehandler(value as EventHandler)
+handlers.Remove(value)
+end removehandler
+raiseevent(sender as object, e as EventArgs)
+end raiseevent
+end event
+sub Hook()
+addhandler Me.Changed, addressof OnChanged
+raiseevent Changed(Me, EventArgs.Empty)
+end sub
+end class

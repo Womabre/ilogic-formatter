@@ -1,8 +1,18 @@
-# Release on a version tag (v1.2.3): test, package, create a GitHub release
-# with the .vsix attached, and publish it to Open VSX and the VS Code
-# Marketplace by trusted publishing (no tokens: GitHub's OIDC identity,
-# registered for this repository and this workflow file on open-vsx.org and on
-# the Marketplace publisher page). See RELEASING.md.
+# Release on a version tag (v1.2.3), in two jobs:
+#
+#   build    read-only. Installs dependencies, type-checks, tests and packages
+#            the .vsix. This is the only job that runs code from the
+#            repository and its dependencies.
+#   publish  holds the publishing rights. Takes the finished .vsix, creates the
+#            GitHub release, and publishes to Open VSX and the VS Code
+#            Marketplace by trusted publishing (no tokens: GitHub's OIDC
+#            identity, registered for this repository and this workflow file on
+#            open-vsx.org and on the Marketplace publisher page).
+#
+# Keeping them apart means nothing that runs during install, build or test can
+# reach the publishing identity. Actions are pinned to a commit, and ovsx and
+# vsce come from bun.lock, so a release uses exactly the tools that were
+# reviewed. See RELEASING.md.
 name: Release
 
 on:
@@ -10,34 +20,62 @@ on:
     tags: ["v*.*.*"]
 
 permissions:
-  contents: write   # create the GitHub release
-  id-token: write   # OIDC token for Open VSX and Marketplace trusted publishing
+  contents: read
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      vsix: ${{ steps.version.outputs.vsix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
       - name: Tag matches package.json version
+        id: version
         run: |
           version=$(bun -e 'console.log(require("./package.json").version)')
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
             exit 1
           fi
-          echo "VSIX=ilogic-formatter-$version.vsix" >> "$GITHUB_ENV"
-      - run: bun install
+          echo "vsix=ilogic-formatter-$version.vsix" >> "$GITHUB_OUTPUT"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
       - run: bun run compile
       - run: bun test
       - name: Package
-        run: bunx vsce package --out "$VSIX"
-      - name: GitHub release
-        uses: softprops/action-gh-release@v2
+        run: bunx --no-install vsce package --out "${{ steps.version.outputs.vsix }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          files: ${{ env.VSIX }}
-          body: See CHANGELOG.md for what changed.
+          name: vsix
+          path: ${{ steps.version.outputs.vsix }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub release
+      id-token: write   # OIDC token for Open VSX and Marketplace trusted publishing
+    env:
+      VSIX: ${{ needs.build.outputs.vsix }}
+    steps:
+      # Only for package.json and bun.lock, to install the two publishing tools
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: vsix
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$VSIX" --verify-tag --title "$GITHUB_REF_NAME" --notes "See CHANGELOG.md for what changed."
       - name: Publish to Open VSX (trusted publishing)
-        run: bunx ovsx@1.2.0 publish "$VSIX" --trusted-publishing
+        run: bunx --no-install ovsx publish "$VSIX" --trusted-publishing
       - name: Publish to VS Code Marketplace (trusted publishing)
-        run: bunx @vscode/vsce@4.1.0 publish --packagePath "$VSIX" --oidc
+        run: bunx --no-install vsce publish --packagePath "$VSIX" --oidc

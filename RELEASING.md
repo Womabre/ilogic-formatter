@@ -52,6 +52,13 @@ If a publish step is refused:
 - **Version already exists.** Both registries accept each version once. The GitHub release is still created; bump the version for a new release. If Open VSX succeeded and only the Marketplace failed, upload the `.vsix` from the GitHub release by hand (below) rather than re-tagging.
 - **Not authorized.** Check that the registration still matches: renaming `release.yml` or the repository needs a new registration.
 
+## The command line tool on npm (not set up yet)
+
+The repository is ready to publish `ilogic-format` as the npm package `ilogic-formatter`: `.npmignore` limits the package to the compiled formatter, README, licence and changelog (`bun pm pack --dry-run` lists it), and `bin` points at `out/cli.js`. Nothing publishes it yet. To start:
+
+1. On npmjs.com, create the package with a first manual `npm publish` (after `bun run compile`), then add this repository and `release.yml` as its Trusted Publisher.
+2. Add a step to the `publish` job that runs `npm publish --provenance` on the checked-out, compiled source. Without step 1 that step fails and would stop the release, which is why it is not in the workflow.
+
 ## Publishing by hand
 
 If the workflow cannot be used, both registries also take a `.vsix` directly:

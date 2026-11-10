@@ -1,8 +1,8 @@
 {
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
-  "description": "Formatter, outline, completion and convention hints for Autodesk Inventor iLogic rules (.iLogicVb)",
-  "version": "1.10.2",
+  "description": "Formatter, outline, completion, parameter hints and convention hints for Autodesk Inventor iLogic rules (.iLogicVb and .vb)",
+  "version": "1.11.0",
   "publisher": "Womabre",
   "license": "MIT",
   "icon": "icon.png",
@@ -15,7 +15,8 @@
   },
   "homepage": "https://github.com/Womabre/ilogic-formatter#readme",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.85.0",
+    "node": ">=18"
   },
   "categories": [
     "Formatters",
@@ -122,10 +123,16 @@
           "description": "Replace lookalike Unicode characters in code with their ASCII equivalents (e.g. en dash → hyphen, curly quote delimiters → straight quotes). String literals and comment text are never changed.",
           "scope": "language-overridable"
         },
+        "ilogicFormatter.vbFilesAreILogic": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Treat .vb files as iLogic rules: they open as iLogic VB, with iLogic highlighting, snippets, indentation, convention hints and quick fixes. Turn off if you work on regular VB.NET projects; a single file can also be switched with the language picker in the status bar."
+        },
         "ilogicFormatter.formatVbFiles": {
           "type": "boolean",
           "default": true,
-          "description": "Also format .vb files. Turn off if you work on regular VB.NET projects and want another formatter for them.",
+          "description": "Format .vb files that are not treated as iLogic rules (vbFilesAreILogic off, or a file switched back to Visual Basic). Turn off if you want another formatter for them.",
           "scope": "window"
         },
         "ilogicFormatter.warnUnbalancedBlocks": {
@@ -154,6 +161,12 @@
             ]
           },
           "description": "iLogic convention hints to turn off (shown for .iLogicVb files)."
+        },
+        "ilogicFormatter.allowCommentedCatch": {
+          "type": "boolean",
+          "default": false,
+          "scope": "language-overridable",
+          "description": "Do not report an empty Catch that holds a comment (for example one saying why the exception is ignored)."
         }
       }
     },
@@ -166,6 +179,12 @@
       {
         "language": "ilogicvb",
         "path": "./snippets/ilogicvb.code-snippets"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": ".ilogicformat.json",
+        "url": "./schemas/ilogicformat.schema.json"
       }
     ]
   },
@@ -191,5 +210,14 @@
   },
   "bin": {
     "ilogic-format": "./out/cli.js"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "Formatting, hints and completion work. A .ilogicformat.json settings file is only read for files on disk."
+    }
   }
 }

@@ -100,6 +100,36 @@ describe("ilogic-format", () => {
         expect(readFileSync(path, "utf8")).toBe('Sub main()\n    x = "Ø 20 mm °"\nEnd Sub\n');
     });
 
+    test("a .ilogicformat.json applies to the rules under it; the command line wins; --no-config ignores it", () => {
+        file("cfg/.ilogicformat.json", JSON.stringify({ indentSize: 2, disabledHints: ["option-strict"] }));
+        const rule = file("cfg/deep/rule.iLogicVb", messy);
+        const two = clean.replace(/    /g, "  ");
+        expect(run([rule]).out).toBe(two);
+        expect(run(["--indent-size", "8", rule]).out).toBe(clean.replace(/    /g, "        "));
+        expect(run(["--no-config", rule]).out).toBe(clean);
+        expect(run(["--lint", rule])).toEqual({ code: 0, out: "", err: "" });
+        expect(run(["--lint", "--no-config", rule]).out).toContain("[option-strict]");
+        const other = file("other.ilogicformat.json", JSON.stringify({ useTabs: true }));
+        expect(run(["--config", other, rule]).out).toBe(clean.replace(/    /g, "\t"));
+    });
+
+    test("a settings file that cannot be used stops that rule with exit 2 and says why", () => {
+        file("badcfg/.ilogicformat.json", '{"indentSize": "wide"}');
+        const rule = file("badcfg/rule.iLogicVb", messy);
+        const r = run(["--write", rule]);
+        expect(r.code).toBe(2);
+        expect(r.err).toContain('"indentSize" must be a whole number from 1 to 16');
+        expect(readFileSync(rule, "utf8")).toBe(messy);
+    });
+
+    test("--disable-hint and --allow-commented-catch", () => {
+        const rule = file("hints.iLogicVb", "Option Strict On\nTry\nx()\nCatch\n' optional\nEnd Try\nMsgBox(1)\n");
+        expect(run(["--lint", "--no-config", rule]).out).toContain("[empty-catch]");
+        const quiet = run(["--lint", "--no-config", "--allow-commented-catch", "--disable-hint", "msgbox", rule]);
+        expect(quiet).toEqual({ code: 0, out: "", err: "" });
+        expect(run(["--lint", "--disable-hint", "nope", rule]).code).toBe(2);
+    });
+
     test("--lint reports block problems and hints, exit 1", () => {
         const path = file("lint.iLogicVb", "Sub Main()\nEnd If\nEnd Sub\n");
         const r = run(["--lint", path]);

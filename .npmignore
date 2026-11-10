@@ -1,0 +1,11 @@
+# The npm package is the ilogic-format command line tool only: the compiled
+# formatter, its README, licence and changelog. (The VS Code extension is
+# packaged from .vscodeignore instead.)
+*
+!out/
+!out/*.js
+out/extension.js
+!README.md
+!LICENSE
+!CHANGELOG.md
+!package.json

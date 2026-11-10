@@ -1,6 +1,6 @@
 # iLogic Formatter
 
-A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` files).
+A VS Code extension that formats Autodesk Inventor iLogic rules: `.iLogicVb` files, and `.vb` files, which it treats as iLogic rules unless you turn that off.
 
 ## Features
 
@@ -11,6 +11,7 @@ A VS Code extension that formats Autodesk Inventor iLogic rules (`.iLogicVb` fil
 - **Indent as you type** — Enter formats the finished line and puts the cursor at the right indent for the next one (`.iLogicVb` files; uses `editor.formatOnType`)
 - **Convention hints** — flags `$"..."` strings, empty `Catch` blocks, `MsgBox` used for messages and a missing `Option Strict On` in `.iLogicVb` files, with quick fixes
 - **iLogic objects** — completion, hover and highlighting for `ThisDoc`, `Logger`, `iProperties`, `Parameter`, `SharedVariable`, `GoExcel` and the other predefined iLogic objects, with links to the Autodesk iLogic API reference
+- **Parameter hints** — inside a call such as `iProperties.Value(` the overloads and the argument you are on are shown; completing a method adds its parentheses
 - **Snippets** — `rule`, `app`, `sub`, `func`, `try`, `log`, `guard`, `region`, `iprop`, `facearea`: iLogic patterns with Option Strict, the ThisServer fallback, XML doc comments and Logger instead of MsgBox
 - **Outline and folding** — Subs, Functions, Properties and types in the Outline view, breadcrumbs and Go to Symbol; folding for every block, `Case`/`Else` section, `#Region`, comment run and `Imports` run
 - **Block warnings** — flags `End If` without `If`, a `Sub` or `If` that is never closed, and `Else`/`Case`/`Catch` outside their block, as you type
@@ -37,9 +38,11 @@ All settings are under `ilogicFormatter.*` in VS Code settings:
 | `normalizeKeywords`   | `true`  | Normalize VB keyword casing       |
 | `normalizeComments`   | `true`  | Space after comment apostrophe    |
 | `normalizeUnicode`    | `true`  | ASCII for lookalike characters in code (strings and comments untouched) |
-| `formatVbFiles`       | `true`  | Also format `.vb` files           |
+| `vbFilesAreILogic`    | `true`  | Treat `.vb` files as iLogic rules: they open as iLogic VB, with its highlighting, snippets, hints and quick fixes. Turn off for regular VB.NET projects |
+| `formatVbFiles`       | `true`  | Format `.vb` files that are not treated as iLogic rules |
 | `warnUnbalancedBlocks` | `true` | Warnings for unbalanced blocks |
 | `disabledHints`       | `[]`    | Convention hints to turn off: `interpolation`, `empty-catch`, `msgbox`, `option-strict` |
+| `allowCommentedCatch` | `false` | Do not report an empty `Catch` that holds a comment |
 
 Example `settings.json`:
 
@@ -53,6 +56,21 @@ Example `settings.json`:
   "ilogicFormatter.normalizeKeywords": true
 }
 ```
+
+### Settings file for a folder of rules
+
+Put a `.ilogicformat.json` in a folder to give every rule in it, and in the folders below it, the same settings. The extension and `ilogic-format` both read it, and it wins over the VS Code settings, so the editor and a CI check always format the same way. VS Code offers completion and validation while you edit the file.
+
+```json
+{
+  "indentSize": 4,
+  "maxBlankLines": 1,
+  "disabledHints": ["msgbox"],
+  "allowCommentedCatch": true
+}
+```
+
+It takes the formatting settings from the table above (`indentSize`, `useTabs`, `maxBlankLines`, `blankLineAfterBlock`, `normalizeKeywords`, `normalizeComments`, `normalizeUnicode`) plus `disabledHints` and `allowCommentedCatch`. The nearest file wins; files are not merged.
 
 ## Command line
 
@@ -71,8 +89,11 @@ bun src/cli.ts --check --lint rules/
 | `--stdin` | Read a rule from stdin |
 | `--json` | Machine-readable output |
 | `--include-vb` | Also pick up `*.vb` files in directories |
+| `--disable-hint RULE` | Turn a convention hint off (repeatable) |
+| `--allow-commented-catch` | Accept an empty `Catch` that holds a comment |
+| `--config FILE` / `--no-config` | Use one settings file for every rule, or none |
 
-Formatting flags mirror the settings (`--indent-size N`, `--use-tabs`, `--no-normalize-keywords`, ...); `--help` lists them all. Exit codes: 0 all good, 1 findings, 2 usage or file error.
+Formatting flags mirror the settings (`--indent-size N`, `--use-tabs`, `--no-normalize-keywords`, ...); `--help` lists them all. Options on the command line win over a `.ilogicformat.json`. Files must be UTF-8; anything else is reported and left untouched. Exit codes: 0 all good, 1 findings, 2 usage or file error.
 
 As a git pre-commit hook (`.git/hooks/pre-commit`) that fails the commit when a staged rule is not formatted:
 

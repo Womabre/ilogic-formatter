@@ -5,7 +5,13 @@
 import { analyzeBlocks, splitStatements } from "./formatter";
 import { codeOnly, INITIAL_STATE, LineState, Token, tokenizeLine } from "./tokenizer";
 
-export type LintRule = "interpolation" | "empty-catch" | "msgbox" | "option-strict";
+export const LINT_RULES = ["interpolation", "empty-catch", "msgbox", "option-strict"] as const;
+export type LintRule = (typeof LINT_RULES)[number];
+
+export interface LintOptions {
+    /** A Catch that holds only a comment (saying why nothing is done) is not reported as empty. */
+    allowCommentedCatch?: boolean;
+}
 
 export interface LintProblem {
     rule: LintRule;
@@ -22,6 +28,7 @@ interface Line {
     /** code with strings blanked to "" and no comment, lowercase, trimmed */
     code: string;
     inString: boolean;
+    hasComment: boolean;
 }
 
 function lines(text: string): Line[] {
@@ -30,11 +37,11 @@ function lines(text: string): Line[] {
         const inString = state.openString !== null;
         const tokenized = tokenizeLine(raw, state);
         state = tokenized.endState;
-        return { raw, tokens: tokenized.tokens, code: inString ? "" : codeOnly(tokenized.tokens).trim().toLowerCase(), inString };
+        return { raw, tokens: tokenized.tokens, code: inString ? "" : codeOnly(tokenized.tokens).trim().toLowerCase(), inString, hasComment: tokenized.tokens.some((t) => t.kind === "comment") };
     });
 }
 
-export function lint(text: string, disabled: LintRule[] = []): LintProblem[] {
+export function lint(text: string, disabled: readonly LintRule[] = [], options: LintOptions = {}): LintProblem[] {
     const all = lines(text);
     const problems: LintProblem[] = [];
     const on = (rule: LintRule) => !disabled.includes(rule);
@@ -79,6 +86,7 @@ export function lint(text: string, disabled: LintRule[] = []): LintProblem[] {
                 if (!/^catch\b/.test(statementStarting(all[catchLine].code, "catch"))) continue;
                 const next = bounds[k + 1];
                 if (!catchIsEmpty(all, catchLine, next)) continue;
+                if (options.allowCommentedCatch && all.slice(catchLine, Math.max(next, catchLine + 1)).some((l) => l.hasComment)) continue;
                 const start = all[catchLine].raw.toLowerCase().indexOf("catch");
                 problems.push({
                     rule: "empty-catch", severity: "warning", line: catchLine, start, end: start + 5,

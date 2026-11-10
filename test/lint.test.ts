@@ -33,6 +33,15 @@ describe("lint", () => {
         expect(hits(S + "Try : y() : Catch : n = 0 : End Try\n")).toEqual([]);
     });
 
+    test("allowCommentedCatch accepts a Catch that explains itself, and nothing else", () => {
+        const allow = (text: string) => lint(S + text, [], { allowCommentedCatch: true }).map((p) => p.rule);
+        expect(allow("Try\nx()\nCatch\n' the property may not exist\nEnd Try\n")).toEqual([]);
+        expect(allow("Try\nx()\nCatch ex As Exception ' optional property\nEnd Try\n")).toEqual([]);
+        expect(allow("Try : x() : Catch : End Try ' optional\n")).toEqual([]);
+        expect(allow("Try\nx()\nCatch\nEnd Try\n")).toEqual(["empty-catch"]);
+        expect(allow("Try\nx()\nCatch\nFinally\n' a comment in Finally is not in the Catch\nEnd Try\n")).toEqual(["empty-catch"]);
+    });
+
     test("Option Strict On, only when the file has code", () => {
         expect(hits("Sub Main()\nEnd Sub\n")).toEqual(["1:0-10 option-strict"]);
         expect(hits("' nothing here\n")).toEqual([]);

@@ -5,6 +5,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-10
+
+### Added
+
+- `.vb` files are treated as iLogic rules: they open as **iLogic VB**, with its highlighting, snippets, indentation, convention hints and quick fixes. The new setting `ilogicFormatter.vbFilesAreILogic` (default on) turns this off for people who work on regular VB.NET projects; a single file can be switched back with the language picker, and that choice is respected until the file is opened again. `.vbs`, `.bas` and `.vba` files are never switched.
+- `.ilogicformat.json`: a settings file for a folder of rules, read by the extension and by `ilogic-format`, so the editor and a CI check format the same way. It sets the formatting options, `disabledHints` and `allowCommentedCatch`, and wins over the VS Code settings. VS Code completes and validates the file. A file with a mistake in it is reported (once in the editor, with exit code 2 on the command line) and not used.
+- `allowCommentedCatch` (setting, settings file and `--allow-commented-catch`): an empty `Catch` that holds a comment, for example one that says why the exception is ignored, is not reported.
+- `ilogic-format`: `--disable-hint RULE` turns a convention hint off, `--config FILE` uses one settings file for every rule, and `--no-config` ignores settings files.
+- Parameter hints: inside a call on a predefined iLogic object (`iProperties.Value(`, `iLogicVb.RunRule(`) the overloads are shown with the argument being typed.
+- Completing a method of a predefined iLogic object adds its parentheses, puts the cursor between them and opens the parameter hints. Properties, and a name typed in front of parentheses that are already there, are inserted as before.
+- The extension declares that it works in untrusted workspaces (it only reads and formats text) and, without the settings file, in virtual workspaces.
+
+### Changed
+
+- `ilogicFormatter.formatVbFiles` now only concerns `.vb` files that are not treated as iLogic rules: with `vbFilesAreILogic` on, `.vb` files are always formatted.
+- Repository only (not in the extension): seeded property tests format 400 generated rules and check what must hold for any input (formatting twice changes nothing, only whitespace changes with the normalizations off, no line is added or lost, nothing throws). The npm package for the command line tool is prepared but not published; see RELEASING.md.
+
 ## [1.10.2] - 2026-11-10
 
 ### Fixed

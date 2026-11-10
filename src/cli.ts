@@ -5,8 +5,10 @@
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
+import { dirname, resolve } from "path";
+import { CONFIG_FILE, ConfigError, configFor, FileConfig, formatOptionsOf, readConfigFile } from "./config";
 import { checkBlocks, format, FormatOptions } from "./formatter";
-import { lint } from "./lint";
+import { lint, LINT_RULES, LintRule } from "./lint";
 
 const HELP = `ilogic-format [options] <file | directory>...
 
@@ -32,6 +34,18 @@ Formatting
   --no-normalize-comments       Keep comments as written
   --no-normalize-unicode        Keep lookalike characters in code
 
+Hints (with --lint)
+  --disable-hint RULE   Turn a convention hint off; repeat for several
+                        (${LINT_RULES.join(", ")})
+  --allow-commented-catch   An empty Catch that holds a comment is fine
+
+Settings file
+  A ${CONFIG_FILE} in the folder of a rule, or in a folder above it, sets the
+  same options for every rule below it, in the editor and here alike. Options
+  given on the command line win over the file.
+  --config FILE      Use this settings file for every rule
+  --no-config        Ignore settings files
+
 Other
   --include-vb       Also format *.vb files found in directories
   -h, --help         Show this help
@@ -54,12 +68,16 @@ interface Args {
     json: boolean;
     includeVb: boolean;
     options: FormatOptions;
+    disabledHints: LintRule[];
+    allowCommentedCatch?: boolean;
+    /** A settings file for every rule, or false for none; undefined looks one up per rule */
+    config?: string | false;
 }
 
 class UsageError extends Error {}
 
 function parseArgs(argv: string[]): Args | "help" | "version" {
-    const args: Args = { paths: [], check: false, write: false, lint: false, stdin: false, json: false, includeVb: false, options: {} };
+    const args: Args = { paths: [], check: false, write: false, lint: false, stdin: false, json: false, includeVb: false, options: {}, disabledHints: [] };
     const number = (flag: string, value: string | undefined, min: number): number => {
         const n = Number(value);
         if (value === undefined || !Number.isInteger(n) || n < min) throw new UsageError(`${flag} needs a whole number of at least ${min}`);
@@ -83,6 +101,18 @@ function parseArgs(argv: string[]): Args | "help" | "version" {
             case "--no-normalize-keywords": args.options.normalizeKeywords = false; break;
             case "--no-normalize-comments": args.options.normalizeComments = false; break;
             case "--no-normalize-unicode": args.options.normalizeUnicode = false; break;
+            case "--allow-commented-catch": args.allowCommentedCatch = true; break;
+            case "--disable-hint": {
+                const rule = argv[++i];
+                if (!(LINT_RULES as readonly (string | undefined)[]).includes(rule)) throw new UsageError(`--disable-hint needs one of: ${LINT_RULES.join(", ")}`);
+                args.disabledHints.push(rule as LintRule);
+                break;
+            }
+            case "--no-config": args.config = false; break;
+            case "--config":
+                if (argv[i + 1] === undefined) throw new UsageError("--config needs a file");
+                args.config = argv[++i];
+                break;
             default:
                 if (a.startsWith("-")) throw new UsageError(`Unknown option ${a} (see --help)`);
                 args.paths.push(a);
@@ -146,11 +176,23 @@ interface Finding {
     message: string;
 }
 
-function findings(raw: string, path: string, options: FormatOptions): Finding[] {
+/** The settings for one rule: its settings file (if any), then the command line on top. */
+function settingsFor(dir: string, args: Args): Required<Pick<FileConfig, "disabledHints">> & FileConfig {
+    const file = args.config === false ? {} : args.config !== undefined ? readConfigFile(resolve(args.config)) : configFor(resolve(dir)).config;
+    return {
+        ...file,
+        ...args.options,
+        disabledHints: [...new Set([...(file.disabledHints ?? []), ...args.disabledHints])],
+        allowCommentedCatch: args.allowCommentedCatch ?? file.allowCommentedCatch,
+    };
+}
+
+function findings(raw: string, path: string, settings: FileConfig): Finding[] {
     const text = raw.replace(/^﻿/, "");
+    const options = formatOptionsOf(settings);
     const blocks: Finding[] = checkBlocks(text, options).map((p) => ({ line: p.line + 1, severity: "warning", rule: "blocks", message: p.message }));
     const hints: Finding[] = /\.ilogicvb$/i.test(path) || path === "<stdin>"
-        ? lint(text).map((p) => ({ line: p.line + 1, severity: p.severity, rule: p.rule, message: p.message }))
+        ? lint(text, settings.disabledHints, settings).map((p) => ({ line: p.line + 1, severity: p.severity, rule: p.rule, message: p.message }))
         : []; // convention hints are for iLogic rules; $"..." is valid in ordinary VB.NET
     return [...blocks, ...hints].sort((a, b) => a.line - b.line);
 }
@@ -184,10 +226,19 @@ function main(argv: string[]): number {
             process.stderr.write(`ilogic-format: <stdin> ${(e as Error).message}\n`);
             return 2;
         }
-        const found = args.lint ? findings(raw, "<stdin>", args.options) : [];
-        if (args.json) process.stdout.write(JSON.stringify({ formatted: formatFileText(raw, args.options).text, findings: found }, null, 2) + "\n");
+        let settings: FileConfig;
+        try {
+            settings = settingsFor(process.cwd(), args);
+        } catch (e) {
+            if (!(e instanceof ConfigError)) throw e;
+            process.stderr.write(`ilogic-format: ${e.message}\n`);
+            return 2;
+        }
+        const options = formatOptionsOf(settings);
+        const found = args.lint ? findings(raw, "<stdin>", settings) : [];
+        if (args.json) process.stdout.write(JSON.stringify({ formatted: formatFileText(raw, options).text, findings: found }, null, 2) + "\n");
         else if (args.lint) printFindings("<stdin>", found);
-        else process.stdout.write(formatFileText(raw, args.options).text);
+        else process.stdout.write(formatFileText(raw, options).text);
         return found.length > 0 ? 1 : 0;
     }
 
@@ -209,15 +260,17 @@ function main(argv: string[]): number {
     const results: { path: string; changed?: boolean; written?: boolean; findings?: Finding[]; error?: string }[] = [];
     for (const path of files) {
         let raw: string;
+        let settings: FileConfig;
         try {
             raw = decodeUtf8(readFileSync(path));
+            settings = settingsFor(dirname(path), args);
         } catch (e) {
             ioError = true;
             results.push({ path, error: (e as Error).message });
             if (!args.json) process.stderr.write(`ilogic-format: ${path}: ${(e as Error).message}\n`);
             continue;
         }
-        const { text, changed } = formatFileText(raw, args.options);
+        const { text, changed } = formatFileText(raw, formatOptionsOf(settings));
         const result: (typeof results)[number] = { path };
         if (printMode) {
             if (!args.json) process.stdout.write(text);
@@ -245,7 +298,7 @@ function main(argv: string[]): number {
         }
         if (args.lint) {
             // After --write, report on the written text
-            result.findings = findings(args.write ? text : raw, path, args.options);
+            result.findings = findings(args.write ? text : raw, path, settings);
             if (result.findings.length > 0) failed = true;
             if (!args.json) printFindings(path, result.findings);
         }

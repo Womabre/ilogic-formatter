@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "iLogic Formatter settings",
+  "description": "Formatting and hint settings for the iLogic rules in this folder and the folders below it. Read by the iLogic Formatter extension and by ilogic-format.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "indentSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "description": "Spaces per indentation level."
+    },
+    "useTabs": {
+      "type": "boolean",
+      "description": "Indent with tabs instead of spaces."
+    },
+    "maxBlankLines": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Maximum number of consecutive blank lines."
+    },
+    "blankLineAfterBlock": {
+      "type": "boolean",
+      "description": "Insert a blank line after End Sub / End Function / End Property."
+    },
+    "normalizeKeywords": {
+      "type": "boolean",
+      "description": "Normalize VB.NET keyword casing (dim → Dim)."
+    },
+    "normalizeComments": {
+      "type": "boolean",
+      "description": "Ensure a space after the comment apostrophe."
+    },
+    "normalizeUnicode": {
+      "type": "boolean",
+      "description": "Replace lookalike Unicode characters in code with their ASCII equivalents."
+    },
+    "disabledHints": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "interpolation",
+          "empty-catch",
+          "msgbox",
+          "option-strict"
+        ]
+      },
+      "description": "Convention hints to turn off."
+    },
+    "allowCommentedCatch": {
+      "type": "boolean",
+      "description": "Do not report an empty Catch that holds a comment."
+    }
+  }
+}

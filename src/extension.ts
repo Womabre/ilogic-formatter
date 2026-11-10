@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
+import { dirname } from "path";
+import { CONFIG_FILE, ConfigError, configFor, FileConfig, formatOptionsOf } from "./config";
 import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsInString } from "./formatter";
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
-import { hoverAt, memberMarkdown, objectMarkdown, suggestionsFor } from "./completion";
+import { hoverAt, memberInsertion, memberMarkdown, objectMarkdown, signatureAt, suggestionsFor } from "./completion";
 import { lint, LintRule } from "./lint";
 import { optionStrictEdits } from "./quickFixes";
 import { minimalLineEdit } from "./edits";
@@ -44,9 +46,31 @@ export function activate(context: vscode.ExtensionContext) {
     ];
 
     /**
+     * The .ilogicformat.json that applies to a document on disk (see config.ts),
+     * or nothing for an unsaved or remote document. A file that cannot be used
+     * is reported once and then ignored, so the editor keeps working.
+     */
+    const reportedConfigProblems = new Set<string>();
+    function fileConfig(document: vscode.TextDocument): FileConfig {
+        if (document.uri.scheme !== "file") return {};
+        try {
+            return configFor(dirname(document.uri.fsPath)).config;
+        } catch (e) {
+            if (!(e instanceof ConfigError)) throw e;
+            if (!reportedConfigProblems.has(e.message)) {
+                reportedConfigProblems.add(e.message);
+                void vscode.window.showWarningMessage(`iLogic Formatter: ${e.message}. The file is ignored until this is fixed.`);
+            }
+            return {};
+        }
+    }
+
+    /**
      * Formatter options for a document. indentSize and useTabs follow the
      * editor's Tab Size / Insert Spaces unless the user set them explicitly.
-     * Out-of-range numbers from settings.json are clamped.
+     * Out-of-range numbers from settings.json are clamped. A .ilogicformat.json
+     * next to or above the file wins over all of these, so the editor formats
+     * the way ilogic-format does.
      */
     function getOptions(document: vscode.TextDocument, editor?: EditorIndent): FormatOptions {
         const config = vscode.workspace.getConfiguration("ilogicFormatter", document);
@@ -62,6 +86,7 @@ export function activate(context: vscode.ExtensionContext) {
             normalizeKeywords: config.get("normalizeKeywords", true),
             normalizeComments: config.get("normalizeComments", true),
             normalizeUnicode: config.get("normalizeUnicode", true),
+            ...formatOptionsOf(fileConfig(document)),
         };
     }
 
@@ -160,7 +185,8 @@ export function activate(context: vscode.ExtensionContext) {
     // Completion and hover for the predefined iLogic objects (ThisDoc, Logger, ...)
     const completionProvider: vscode.CompletionItemProvider = {
         provideCompletionItems(document, position) {
-            const suggestions = suggestionsFor(document.lineAt(position.line).text.slice(0, position.character));
+            const lineText = document.lineAt(position.line).text;
+            const suggestions = suggestionsFor(lineText.slice(0, position.character));
             if (!suggestions) return [];
             if (suggestions.kind === "members") {
                 return suggestions.members.map((member) => {
@@ -168,6 +194,15 @@ export function activate(context: vscode.ExtensionContext) {
                         member.kind === "method" ? vscode.CompletionItemKind.Method : vscode.CompletionItemKind.Property);
                     item.detail = `${suggestions.object.name}.${member.name} (${suggestions.object.type})`;
                     item.documentation = new vscode.MarkdownString(memberMarkdown(suggestions.object, member));
+                    // Methods come with their parentheses; with arguments to fill in, the
+                    // cursor lands between them and the parameter hints open
+                    const insertion = memberInsertion(member, lineText.slice(position.character));
+                    if (insertion.cursorInside) {
+                        item.insertText = new vscode.SnippetString(insertion.text.replace(/\(\)$/, "($0)"));
+                        item.command = { command: "editor.action.triggerParameterHints", title: "Parameter hints" };
+                    } else if (insertion.text !== member.name) {
+                        item.insertText = insertion.text;
+                    }
                     return item;
                 });
             }
@@ -177,6 +212,23 @@ export function activate(context: vscode.ExtensionContext) {
                 item.documentation = new vscode.MarkdownString(objectMarkdown(object));
                 return item;
             });
+        },
+    };
+
+    // Parameter hints inside a call on a predefined object: iProperties.Value(|
+    const signatureProvider: vscode.SignatureHelpProvider = {
+        provideSignatureHelp(document, position) {
+            const info = signatureAt(document.lineAt(position.line).text.slice(0, position.character));
+            if (!info) return undefined;
+            const help = new vscode.SignatureHelp();
+            help.signatures = info.signatures.map((s) => {
+                const signature = new vscode.SignatureInformation(s.label, new vscode.MarkdownString(info.member.summary));
+                signature.parameters = s.parameters.map((parameter) => new vscode.ParameterInformation(parameter));
+                return signature;
+            });
+            help.activeSignature = info.activeSignature;
+            help.activeParameter = info.activeParameter;
+            return help;
         },
     };
 
@@ -193,6 +245,7 @@ export function activate(context: vscode.ExtensionContext) {
         return vscode.Disposable.from(
             vscode.languages.registerCompletionItemProvider(selector, completionProvider, "."),
             vscode.languages.registerHoverProvider(selector, hoverProvider),
+            vscode.languages.registerSignatureHelpProvider(selector, signatureProvider, "(", ","),
             vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
             vscode.languages.registerFoldingRangeProvider(selector, foldingProvider),
             vscode.languages.registerDocumentFormattingEditProvider(selector, documentProvider),
@@ -204,7 +257,8 @@ export function activate(context: vscode.ExtensionContext) {
     // .iLogicVb files are always formatted
     context.subscriptions.push(register(iLogicSelector));
 
-    // .vb files are formatted unless ilogicFormatter.formatVbFiles is false.
+    // .vb files that stay Visual Basic (vbFilesAreILogic off, or switched back by
+    // hand) are formatted unless ilogicFormatter.formatVbFiles is false.
     // Registered only while enabled, so VS Code does not list this extension
     // as a .vb formatter once the user opts out.
     let vbRegistration: vscode.Disposable | undefined;
@@ -223,6 +277,56 @@ export function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration("ilogicFormatter.formatVbFiles")) updateVbRegistration();
         }),
         { dispose: () => vbRegistration?.dispose() }
+    );
+
+    // ── .vb files are iLogic rules, unless ilogicFormatter.vbFilesAreILogic is off ──
+    // iLogic external rules are often saved as .vb. VS Code opens those as
+    // "Visual Basic"; switching the document to "iLogic VB" gives it everything
+    // an .iLogicVb file gets: highlighting, snippets, indentation, hints and
+    // quick fixes. Only .vb is switched, never .vbs, .bas or .vba.
+    const adopted = new Map<string, ReturnType<typeof setTimeout> | undefined>();
+    const isVbFile = (document: vscode.TextDocument) => /\.vb$/i.test(document.fileName);
+    const vbIsILogic = (document: vscode.TextDocument) =>
+        vscode.workspace.getConfiguration("ilogicFormatter", document).get("vbFilesAreILogic", true);
+
+    function setLanguage(document: vscode.TextDocument, languageId: string) {
+        // Fails only when the document closed in the meantime: nothing to switch then
+        vscode.languages.setTextDocumentLanguage(document, languageId).then(undefined, () => undefined);
+    }
+
+    /** Switches a newly opened .vb document to iLogic VB, once: picking Visual Basic by hand afterwards sticks. */
+    function adoptVbFile(document: vscode.TextDocument) {
+        const key = document.uri.toString();
+        if (document.languageId !== "vb" || !isVbFile(document) || adopted.has(key) || !vbIsILogic(document)) return;
+        adopted.set(key, undefined);
+        setLanguage(document, "ilogicvb");
+    }
+
+    vscode.workspace.textDocuments.forEach(adoptVbFile);
+    context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument(adoptVbFile),
+        // Changing a document's language closes and reopens it. The file is
+        // forgotten a moment after it closes, so that reopen (the user choosing
+        // Visual Basic) is left alone, while opening the file again later is not.
+        vscode.workspace.onDidCloseTextDocument((document) => {
+            const key = document.uri.toString();
+            if (!adopted.has(key) || document.languageId !== "ilogicvb") return;
+            clearTimeout(adopted.get(key));
+            adopted.set(key, setTimeout(() => adopted.delete(key), 500));
+        }),
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (!e.affectsConfiguration("ilogicFormatter.vbFilesAreILogic")) return;
+            for (const document of vscode.workspace.textDocuments) {
+                if (!isVbFile(document)) continue;
+                if (vbIsILogic(document)) {
+                    adopted.delete(document.uri.toString());
+                    adoptVbFile(document);
+                } else if (document.languageId === "ilogicvb") {
+                    setLanguage(document, "vb");
+                }
+            }
+        }),
+        { dispose: () => adopted.forEach((timer) => clearTimeout(timer)) }
     );
 
     // ── Warnings for unbalanced blocks (End If without If, unclosed Sub, ...) ──
@@ -261,8 +365,11 @@ export function activate(context: vscode.ExtensionContext) {
             hints.delete(document.uri);
             return;
         }
-        const disabled = vscode.workspace.getConfiguration("ilogicFormatter", document).get<LintRule[]>("disabledHints", []);
-        hints.set(document.uri, lint(document.getText(), disabled).map((p) => {
+        const settings = vscode.workspace.getConfiguration("ilogicFormatter", document);
+        const file = fileConfig(document);
+        const disabled = [...settings.get<LintRule[]>("disabledHints", []), ...(file.disabledHints ?? [])];
+        const allowCommentedCatch = file.allowCommentedCatch ?? settings.get("allowCommentedCatch", false);
+        hints.set(document.uri, lint(document.getText(), disabled, { allowCommentedCatch }).map((p) => {
             const diagnostic = new vscode.Diagnostic(new vscode.Range(p.line, p.start, p.line, p.end), p.message,
                 p.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Information);
             diagnostic.source = "iLogic conventions";
@@ -308,6 +415,14 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         { dispose: () => pending.forEach((timer) => clearTimeout(timer)) }
     );
+
+    // A changed .ilogicformat.json changes the hints and warnings of the rules under it
+    const configWatcher = vscode.workspace.createFileSystemWatcher("**/" + CONFIG_FILE);
+    const recheckAll = () => {
+        reportedConfigProblems.clear();
+        vscode.workspace.textDocuments.forEach(updateDiagnostics);
+    };
+    context.subscriptions.push(configWatcher, configWatcher.onDidChange(recheckAll), configWatcher.onDidCreate(recheckAll), configWatcher.onDidDelete(recheckAll));
 
     // Quick fixes for convention hints, plus "don't show this hint"
     const codeActions: vscode.CodeActionProvider = {

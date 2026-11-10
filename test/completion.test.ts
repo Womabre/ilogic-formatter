@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { hoverAt, suggestionsFor } from "../src/completion";
+import { hoverAt, memberInsertion, signatureAt, suggestionsFor } from "../src/completion";
+import { findObject } from "../src/ilogicApi";
 import { ILOGIC_OBJECTS } from "../src/ilogicApi";
 
 const memberNames = (prefix: string) => {
@@ -56,5 +57,50 @@ describe("API data", () => {
             expect({ object: o.name, unique: new Set(names).size === names.length }).toEqual({ object: o.name, unique: true });
             for (const m of o.members) expect(m.summary.length).toBeLessThanOrEqual(100);
         }
+    });
+});
+
+describe("signatureAt", () => {
+    const at = (prefix: string) => {
+        const s = signatureAt(prefix);
+        return s && { labels: s.signatures.map((x) => x.label), active: s.activeSignature, parameter: s.activeParameter };
+    };
+
+    test("the overloads of the call the cursor is in, and the argument being typed", () => {
+        expect(at("x = iProperties.Value(")).toEqual({
+            labels: ["iProperties.Value(setName As String, propertyName As String)", "iProperties.Value(componentOrDocName As Object, setName As String, propertyName As String)"],
+            active: 0, parameter: 0,
+        });
+        expect(at('x = iproperties.value("Project", ')).toMatchObject({ active: 0, parameter: 1 });
+        expect(at('x = iProperties.Value("Part:1", "Project", ')).toMatchObject({ active: 1, parameter: 2 });
+    });
+
+    test("commas and parentheses in strings and nested calls do not count", () => {
+        expect(at('iProperties.Value("a, (b", ')).toMatchObject({ parameter: 1 });
+        expect(at("iProperties.Value(Name(1, 2), ")).toMatchObject({ parameter: 1 });
+        expect(at('iProperties.Value("Project", "open string')).toMatchObject({ parameter: 1 });
+        expect(at("iProperties.Value(New String() {1, 2}, ")).toMatchObject({ parameter: 1 });
+    });
+
+    test("nothing outside a call, in a comment, after the call, or for an unknown member", () => {
+        expect(at("x = iProperties.Value")).toBeNull();
+        expect(at('iProperties.Value("a", "b") + ')).toBeNull();
+        expect(at("' iProperties.Value(")).toBeNull();
+        expect(at("oDoc.Save(")).toBeNull();
+        expect(at("iProperties.Value(Other(")).toBeNull();
+    });
+});
+
+describe("memberInsertion", () => {
+    const member = (object: string, name: string) => findObject(object)!.members.find((m) => m.name === name)!;
+
+    test("methods get parentheses, with the cursor inside when they take arguments", () => {
+        expect(memberInsertion(member("iLogicVb", "RunRule"), "")).toEqual({ text: "RunRule()", cursorInside: true });
+        expect(memberInsertion(member("ThisDoc", "Save"), "")).toEqual({ text: "Save()", cursorInside: true }); // parameters not known
+    });
+
+    test("properties, and names typed in front of existing parentheses, are inserted as they are", () => {
+        expect(memberInsertion(member("iProperties", "Value"), "")).toEqual({ text: "Value", cursorInside: false });
+        expect(memberInsertion(member("iLogicVb", "RunRule"), ' ("Rule")')).toEqual({ text: "RunRule", cursorInside: false });
     });
 });

@@ -138,11 +138,29 @@ describe("ilogic-format", () => {
         expect(r.out).toContain(`${path}:1: information [option-strict]`);
     });
 
-    test("directories pick up .iLogicVb only, unless --include-vb", () => {
+    test("directories pick up .iLogicVb and .vb rules, but no other files; --no-vb leaves .vb out", () => {
         file("tree/sub/one.iLogicVb", clean);
         file("tree/two.vb", messy);
-        expect(JSON.parse(run(["--check", "--json", join(dir, "tree")]).out).summary.files).toBe(1);
-        expect(JSON.parse(run(["--check", "--json", "--include-vb", join(dir, "tree")]).out).summary).toMatchObject({ files: 2, notFormatted: 1 });
+        file("tree/notes.txt", messy);
+        file("tree/script.vbs", messy);
+        const tree = join(dir, "tree");
+        expect(JSON.parse(run(["--check", "--json", tree]).out).summary).toMatchObject({ files: 2, notFormatted: 1 });
+        expect(JSON.parse(run(["--check", "--json", "--no-vb", tree]).out).summary).toMatchObject({ files: 1, notFormatted: 0 });
+    });
+
+    test(".vb files get the convention hints of a rule, unless --no-vb or the settings file says they are not rules", () => {
+        const rule = file("vbrules/rule.vb", "Sub Main()\nMsgBox(1)\nEnd Sub\n");
+        expect(run(["--lint", rule]).out).toContain("[msgbox]");
+        expect(run(["--lint", "--no-vb", rule])).toEqual({ code: 0, out: "", err: "" }); // still checked for blocks, no hints
+
+        // A folder of regular VB.NET code opts out for the editor and the command line alike
+        file("dotnet/.ilogicformat.json", JSON.stringify({ vbFilesAreILogic: false }));
+        const code = file("dotnet/Program.vb", "Sub Main()\nMsgBox(1)\nEnd Sub\n");
+        file("dotnet/rule.iLogicVb", clean);
+        expect(JSON.parse(run(["--check", "--json", join(dir, "dotnet")]).out).results.map((r: { path: string }) => r.path)).toEqual([join(dir, "dotnet", "rule.iLogicVb")]);
+        expect(run(["--lint", code])).toEqual({ code: 0, out: "", err: "" });
+        expect(run(["--lint", "--include-vb", code]).out).toContain("[msgbox]");
+        expect(JSON.parse(run(["--check", "--json", "--include-vb", join(dir, "dotnet")]).out).summary.files).toBe(2);
     });
 
     test("--stdin and formatting options", () => {

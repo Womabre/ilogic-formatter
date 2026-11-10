@@ -13,7 +13,8 @@ import { lint, LINT_RULES, LintRule } from "./lint";
 const HELP = `ilogic-format [options] <file | directory>...
 
 Formats Autodesk Inventor iLogic rules. Directories are searched (recursively)
-for *.iLogicVb files; add --include-vb to also pick up *.vb files.
+for *.iLogicVb and *.vb files: a .vb file is taken for an iLogic rule, unless
+--no-vb or a settings file says otherwise.
 
 Modes (default: print the formatted rule to stdout; one file only)
   --check            List files that are not formatted; exit 1 if any
@@ -47,7 +48,9 @@ Settings file
   --no-config        Ignore settings files
 
 Other
-  --include-vb       Also format *.vb files found in directories
+  --no-vb            .vb files are regular VB.NET: skip them in directories, and
+                     give a .vb file named on the command line no convention hints
+  --include-vb       .vb files are iLogic rules, also where a settings file says not
   -h, --help         Show this help
   -v, --version      Show the version
 
@@ -66,7 +69,8 @@ interface Args {
     lint: boolean;
     stdin: boolean;
     json: boolean;
-    includeVb: boolean;
+    /** .vb files are iLogic rules: set by --include-vb / --no-vb; undefined follows the settings file (default yes) */
+    vb?: boolean;
     options: FormatOptions;
     disabledHints: LintRule[];
     allowCommentedCatch?: boolean;
@@ -77,7 +81,7 @@ interface Args {
 class UsageError extends Error {}
 
 function parseArgs(argv: string[]): Args | "help" | "version" {
-    const args: Args = { paths: [], check: false, write: false, lint: false, stdin: false, json: false, includeVb: false, options: {}, disabledHints: [] };
+    const args: Args = { paths: [], check: false, write: false, lint: false, stdin: false, json: false, options: {}, disabledHints: [] };
     const number = (flag: string, value: string | undefined, min: number): number => {
         const n = Number(value);
         if (value === undefined || !Number.isInteger(n) || n < min) throw new UsageError(`${flag} needs a whole number of at least ${min}`);
@@ -93,7 +97,8 @@ function parseArgs(argv: string[]): Args | "help" | "version" {
             case "--lint": args.lint = true; break;
             case "--stdin": args.stdin = true; break;
             case "--json": args.json = true; break;
-            case "--include-vb": args.includeVb = true; break;
+            case "--include-vb": args.vb = true; break;
+            case "--no-vb": args.vb = false; break;
             case "--use-tabs": args.options.useTabs = true; break;
             case "--indent-size": args.options.indentSize = number(a, argv[++i], 1); break;
             case "--max-blank-lines": args.options.maxBlankLines = number(a, argv[++i], 0); break;
@@ -125,15 +130,14 @@ function parseArgs(argv: string[]): Args | "help" | "version" {
 }
 
 /** Files to process: explicit files as given, directories searched for rules. */
-function collectFiles(paths: string[], includeVb: boolean): string[] {
-    const pattern = includeVb ? /\.(ilogicvb|vb)$/i : /\.ilogicvb$/i;
+function collectFiles(paths: string[], vbIsILogic: (path: string) => boolean): string[] {
     const files: string[] = [];
     const walk = (dir: string) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
             if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
             const full = join(dir, entry.name);
             if (entry.isDirectory()) walk(full);
-            else if (pattern.test(entry.name)) files.push(full);
+            else if (/\.ilogicvb$/i.test(entry.name) || (/\.vb$/i.test(entry.name) && vbIsILogic(full))) files.push(full);
         }
     };
     for (const p of paths) {
@@ -184,16 +188,28 @@ function settingsFor(dir: string, args: Args): Required<Pick<FileConfig, "disabl
         ...args.options,
         disabledHints: [...new Set([...(file.disabledHints ?? []), ...args.disabledHints])],
         allowCommentedCatch: args.allowCommentedCatch ?? file.allowCommentedCatch,
+        vbFilesAreILogic: args.vb ?? file.vbFilesAreILogic ?? true,
     };
+}
+
+/** Whether a .vb file found in a directory is a rule. A settings file that cannot be read is reported when the file is processed. */
+function vbIsILogic(path: string, args: Args): boolean {
+    try {
+        return settingsFor(dirname(path), args).vbFilesAreILogic !== false;
+    } catch (e) {
+        if (e instanceof ConfigError) return true;
+        throw e;
+    }
 }
 
 function findings(raw: string, path: string, settings: FileConfig): Finding[] {
     const text = raw.replace(/^﻿/, "");
     const options = formatOptionsOf(settings);
     const blocks: Finding[] = checkBlocks(text, options).map((p) => ({ line: p.line + 1, severity: "warning", rule: "blocks", message: p.message }));
-    const hints: Finding[] = /\.ilogicvb$/i.test(path) || path === "<stdin>"
+    const isRule = /\.ilogicvb$/i.test(path) || path === "<stdin>" || (/\.vb$/i.test(path) && settings.vbFilesAreILogic !== false);
+    const hints: Finding[] = isRule
         ? lint(text, settings.disabledHints, settings).map((p) => ({ line: p.line + 1, severity: p.severity, rule: p.rule, message: p.message }))
-        : []; // convention hints are for iLogic rules; $"..." is valid in ordinary VB.NET
+        : []; // convention hints are for iLogic rules; $"..." is valid in regular VB.NET
     return [...blocks, ...hints].sort((a, b) => a.line - b.line);
 }
 
@@ -244,7 +260,8 @@ function main(argv: string[]): number {
 
     let files: string[];
     try {
-        files = collectFiles(args.paths, args.includeVb);
+        const given = args;
+        files = collectFiles(args.paths, (path) => vbIsILogic(path, given));
     } catch (e) {
         process.stderr.write(`ilogic-format: ${(e as Error).message}\n`);
         return 2;

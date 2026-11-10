@@ -286,8 +286,10 @@ export function activate(context: vscode.ExtensionContext) {
     // quick fixes. Only .vb is switched, never .vbs, .bas or .vba.
     const adopted = new Map<string, ReturnType<typeof setTimeout> | undefined>();
     const isVbFile = (document: vscode.TextDocument) => /\.vb$/i.test(document.fileName);
+    // A .ilogicformat.json above the file decides first, so a folder of regular
+    // VB.NET code can opt out for everyone who opens it
     const vbIsILogic = (document: vscode.TextDocument) =>
-        vscode.workspace.getConfiguration("ilogicFormatter", document).get("vbFilesAreILogic", true);
+        fileConfig(document).vbFilesAreILogic ?? vscode.workspace.getConfiguration("ilogicFormatter", document).get("vbFilesAreILogic", true);
 
     function setLanguage(document: vscode.TextDocument, languageId: string) {
         // Fails only when the document closed in the meantime: nothing to switch then

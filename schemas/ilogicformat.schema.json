@@ -57,6 +57,10 @@
     "allowCommentedCatch": {
       "type": "boolean",
       "description": "Do not report an empty Catch that holds a comment."
+    },
+    "vbFilesAreILogic": {
+      "type": "boolean",
+      "description": "Treat .vb files as iLogic rules (the default). Set to false for folders with regular VB.NET code: the editor leaves those files as Visual Basic, and ilogic-format skips them in folders and gives them no convention hints."
     }
   }
 }

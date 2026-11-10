@@ -232,6 +232,14 @@ describe("extension", () => {
         expect(state.languageChanges).toEqual([["/rules/Flange.vb", "ilogicvb"], ["/rules/Flange.vb", "vb"]]);
     });
 
+    test("a settings file can say that the .vb files under it are not rules", () => {
+        const folder = realpathSync(mkdtempSync(join(tmpdir(), "ilogic-ext-")));
+        cleanup.push(folder);
+        writeFileSync(join(folder, ".ilogicformat.json"), JSON.stringify({ vbFilesAreILogic: false }));
+        start([document("x = 1\n", "vb", join(folder, "Program.vb")), document("x = 1\n", "vb", "/elsewhere/Rule.vb")]);
+        expect(state.languageChanges).toEqual([["/elsewhere/Rule.vb", "ilogicvb"]]);
+    });
+
     test("a .ilogicformat.json next to the rule wins over the editor settings, for formatting and hints", () => {
         const folder = realpathSync(mkdtempSync(join(tmpdir(), "ilogic-ext-")));
         cleanup.push(folder);

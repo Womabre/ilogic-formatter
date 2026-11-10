@@ -11,7 +11,7 @@ describe(".ilogicformat.json", () => {
     test("accepts every documented setting, and $schema", () => {
         const text = JSON.stringify({
             $schema: "x", indentSize: 2, useTabs: true, maxBlankLines: 0, blankLineAfterBlock: false, normalizeKeywords: false,
-            normalizeComments: false, normalizeUnicode: false, disabledHints: ["msgbox", "option-strict"], allowCommentedCatch: true,
+            normalizeComments: false, normalizeUnicode: false, disabledHints: ["msgbox", "option-strict"], allowCommentedCatch: true, vbFilesAreILogic: false,
         });
         const config = parseConfig(text, "f");
         expect(Object.keys(config).sort()).toEqual(Object.keys(CONFIG_KEYS).sort());

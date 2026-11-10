@@ -70,7 +70,7 @@ Put a `.ilogicformat.json` in a folder to give every rule in it, and in the fold
 }
 ```
 
-It takes the formatting settings from the table above (`indentSize`, `useTabs`, `maxBlankLines`, `blankLineAfterBlock`, `normalizeKeywords`, `normalizeComments`, `normalizeUnicode`) plus `disabledHints` and `allowCommentedCatch`. The nearest file wins; files are not merged.
+It takes the formatting settings from the table above (`indentSize`, `useTabs`, `maxBlankLines`, `blankLineAfterBlock`, `normalizeKeywords`, `normalizeComments`, `normalizeUnicode`) plus `disabledHints`, `allowCommentedCatch` and `vbFilesAreILogic` (set that one to `false` in a folder of regular VB.NET code: the editor then leaves its `.vb` files as Visual Basic, and `ilogic-format` skips them). The nearest file wins; files are not merged.
 
 ## Command line
 
@@ -82,13 +82,13 @@ bun src/cli.ts --check --lint rules/
 
 | Option | Does |
 | --- | --- |
-| *(none)* | Print the formatted rule (one file) |
+| *(none)* | Print the formatted rule (one file). Directories are searched for `*.iLogicVb` and `*.vb` |
 | `--check` | List files that are not formatted; exit 1 if any |
 | `--write` | Format in place, keeping CRLF line endings and the BOM |
 | `--lint` | Report unbalanced blocks and convention hints; exit 1 if any |
 | `--stdin` | Read a rule from stdin |
 | `--json` | Machine-readable output |
-| `--include-vb` | Also pick up `*.vb` files in directories |
+| `--no-vb` | `.vb` files are regular VB.NET: skipped in directories, no convention hints |
 | `--disable-hint RULE` | Turn a convention hint off (repeatable) |
 | `--allow-commented-catch` | Accept an empty `Catch` that holds a comment |
 | `--config FILE` / `--no-config` | Use one settings file for every rule, or none |

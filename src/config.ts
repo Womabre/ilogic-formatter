@@ -14,6 +14,8 @@ export const CONFIG_FILE = ".ilogicformat.json";
 export interface FileConfig extends FormatOptions {
     disabledHints?: LintRule[];
     allowCommentedCatch?: boolean;
+    /** .vb files are iLogic rules (the default); false leaves them to regular VB.NET tooling */
+    vbFilesAreILogic?: boolean;
 }
 
 export class ConfigError extends Error {}
@@ -33,6 +35,7 @@ export const CONFIG_KEYS: Record<keyof FileConfig, Check> = {
     normalizeComments: boolean,
     normalizeUnicode: boolean,
     allowCommentedCatch: boolean,
+    vbFilesAreILogic: boolean,
     disabledHints: (v) =>
         Array.isArray(v) && v.every((rule) => (LINT_RULES as readonly unknown[]).includes(rule))
             ? null
@@ -101,6 +104,6 @@ export function configFor(dir: string): { path: string | null; config: FileConfi
 
 /** The formatter's part of a config (without the hint choices). */
 export function formatOptionsOf(config: FileConfig): FormatOptions {
-    const { disabledHints: _hints, allowCommentedCatch: _catch, ...options } = config;
+    const { disabledHints: _hints, allowCommentedCatch: _catch, vbFilesAreILogic: _vb, ...options } = config;
     return options;
 }

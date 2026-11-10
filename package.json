@@ -49,17 +49,6 @@
           ".iLogicVb"
         ],
         "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "vb",
-        "aliases": [
-          "Visual Basic",
-          "VB.NET"
-        ],
-        "extensions": [
-          ".vb"
-        ],
-        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [

@@ -35,7 +35,9 @@
     "snippets",
     "linter"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:vb"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
@@ -168,18 +170,21 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "tsc -p ./",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test": "bun test",
-    "package": "npm run compile && vsce package --out ilogic-formatter.vsix",
+    "package": "tsc -p ./ && vsce package --out ilogic-formatter.vsix",
     "grammar": "bun scripts/build-grammar.ts",
-    "format": "bun src/cli.ts"
+    "format": "bun src/cli.ts",
+    "typecheck": "tsc -p ./ --noEmit && tsc -p tsconfig.test.json"
   },
   "devDependencies": {
+    "@types/bun": "1.4.4",
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^2.22.0",
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "4.1.0",
+    "ovsx": "1.2.0",
     "typescript": "^5.3.0"
   },
   "bin": {

@@ -104,8 +104,9 @@ Releasing new versions is described in [RELEASING.md](RELEASING.md).
 ### Development
 
 ```bash
-npm install
-npm run compile
+bun install
+bun run compile
+bun run typecheck
 bun test
 # Press F5 in VS Code to launch Extension Development Host
 ```

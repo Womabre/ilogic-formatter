@@ -165,7 +165,7 @@ export interface BlockProblem {
  * Uses the same classification as the formatter, so it sees the code the
  * same way formatting does.
  */
-export function checkBlocks(text: string, options: FormatOptions = {}): BlockProblem[] {
+export function checkBlocks(text: string, options: FormatOptions = {}): readonly BlockProblem[] {
     return analyzeBlocks(text, options).problems;
 }
 
@@ -175,11 +175,34 @@ export interface BlockSpan {
     keyword: string;
     start: number;
     end: number;
-    middles: number[];
+    readonly middles: readonly number[];
 }
 
 /** Block problems and the matched blocks (for folding and the outline). */
-export function analyzeBlocks(text: string, options: FormatOptions = {}): { problems: BlockProblem[]; spans: BlockSpan[] } {
+export function analyzeBlocks(text: string, options: FormatOptions = {}): BlockAnalysis {
+    // Folding, the outline, block warnings and the convention hints all ask
+    // for the same document after every edit: analyse it once.
+    const key = JSON.stringify({ ...DEFAULT_OPTIONS, ...options });
+    const cached = analysisCache.find((entry) => entry.key === key && entry.text === text);
+    if (cached) return cached.analysis;
+    const analysis = runBlockAnalysis(text, options);
+    analysisCache.unshift({ key, text, analysis });
+    analysisCache.length = Math.min(analysisCache.length, ANALYSIS_CACHE_SIZE);
+    return analysis;
+}
+
+/** The result is shared between callers: read it, never change it. */
+export interface BlockAnalysis {
+    readonly problems: readonly BlockProblem[];
+    readonly spans: readonly BlockSpan[];
+}
+
+// The last few analyses (a document is asked about with the user's options
+// and with the defaults, and two editors can be open side by side)
+const ANALYSIS_CACHE_SIZE = 4;
+const analysisCache: { key: string; text: string; analysis: BlockAnalysis }[] = [];
+
+function runBlockAnalysis(text: string, options: FormatOptions): BlockAnalysis {
     const code = new BlockChecker();
     const directives = new BlockChecker();
     formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }, { code, directives, branchStarts: [] });

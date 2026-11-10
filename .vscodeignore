@@ -17,3 +17,4 @@ RELEASING.md
 bun.lock
 bun.lockb
 package-lock.json
+tsconfig.test.json

@@ -20,9 +20,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **Format iLogic Rule** and Format Document replace only the lines that change, so the cursor and folded regions outside them stay where they are. Previously the whole document was replaced.
 - The "Log the exception" quick fix indents the inserted line with the file's indentation settings instead of always four spaces.
 - Formatting a file with a very long run of comment lines no longer slows down with the square of its length (20,000 comment lines: 620 ms before, 14 ms now).
+- Folding, the outline, block warnings and convention hints share one analysis of the document after each edit instead of each running their own.
 
 ### Changed
 
+- `.vb`, `.vbs`, `.bas` and `.vba` files use VS Code's own Visual Basic brackets, indentation and on-Enter rules again. The extension used to replace them with its iLogic rules for every Visual Basic file, also with `formatVbFiles` off. Formatting, folding, the outline and block warnings for `.vb` files are unchanged; `.iLogicVb` files keep the iLogic rules.
+- Repository only (not in the extension): dependencies are locked in `bun.lock` (replacing `package-lock.json`) and installed with `--frozen-lockfile`; `@types/vscode` is pinned to the oldest supported VS Code (1.85) so a newer API cannot slip in; tests and scripts are type-checked (`bun run typecheck`); `extension.ts` has tests of its own.
+- Repository only: the release workflow is split into a read-only build job and a publish job that alone holds the publishing rights and runs no repository code. Actions are pinned to a commit, and `ovsx` and `vsce` come from the lockfile.
 - Repository only (not in the extension): the release workflow also publishes to the VS Code Marketplace by trusted publishing, so a version tag now updates all three places. RELEASING.md describes the setup.
 
 ## [1.10.1] - 2026-10-06

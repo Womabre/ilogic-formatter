@@ -1,11 +1,12 @@
 // Convention checks for iLogic rules (.iLogicVb), following the iLogic coding
 // standard: no string interpolation, no empty Catch, Logger instead of MsgBox
-// for notifications, Option Strict On.
+// for notifications, Option Strict On, and two compile errors that look fine:
+// If(ThisApplication, ThisServer) and short BCL names that Inventor also uses.
 
 import { analyzeBlocks, splitStatements } from "./formatter";
 import { codeOnly, INITIAL_STATE, LineState, Token, tokenizeLine } from "./tokenizer";
 
-export const LINT_RULES = ["interpolation", "empty-catch", "msgbox", "option-strict"] as const;
+export const LINT_RULES = ["interpolation", "empty-catch", "msgbox", "option-strict", "thisserver-fallback", "ambiguous-name"] as const;
 export type LintRule = (typeof LINT_RULES)[number];
 
 export interface LintOptions {
@@ -60,6 +61,33 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
                 column += token.text.length;
             }
         }
+        if (!l.inString && (on("thisserver-fallback") || on("ambiguous-name"))) {
+            // Strings and the comment blanked out at the same length, so columns stay put
+            const masked = l.tokens.map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length))).join("");
+            if (on("thisserver-fallback")) {
+                for (const span of ifCalls(masked)) {
+                    const inside = masked.slice(span.start, span.end).toLowerCase();
+                    if (/\bthisapplication\b/.test(inside) && /\bthisserver\b/.test(inside)) {
+                        problems.push({
+                            rule: "thisserver-fallback", severity: "warning", line: i, start: span.start, end: span.end,
+                            message: "ThisServer is not an Inventor.Application, so If() finds no common type and the rule does not compile. Check both for Nothing: If ThisApplication Is Nothing AndAlso ThisServer Is Nothing Then ...",
+                        });
+                    }
+                }
+            }
+            if (on("ambiguous-name")) {
+                const name = /(?<![.\w])(file|environment)\s*\./gi;
+                let m: RegExpExecArray | null;
+                while ((m = name.exec(masked)) !== null) {
+                    const word = m[1];
+                    const full = word.toLowerCase() === "file" ? "System.IO.File" : "System.Environment";
+                    problems.push({
+                        rule: "ambiguous-name", severity: "warning", line: i, start: m.index, end: m.index + word.length,
+                        message: `Inventor also has a type called ${word}, so iLogic reports it as ambiguous or misses the member. Write ${full} in full.`,
+                    });
+                }
+            }
+        }
         // MsgBox / MessageBox.Show as a statement: a notification, not a decision.
         // A statement starts the line, or follows ":", Then or Else.
         if (on("msgbox") && !l.inString) {
@@ -104,6 +132,27 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
         });
     }
     return problems.sort((a, b) => a.line - b.line || a.start - b.start);
+}
+
+/** Spans of If(...) operator calls on a masked line, from "If" to the closing parenthesis. An If
+ *  statement ("If (a) Then", also after ":", Then, Else or #) is not an operator and is skipped. */
+function ifCalls(masked: string): { start: number; end: number }[] {
+    const spans: { start: number; end: number }[] = [];
+    const open = /\bif\s*\(/gi;
+    let m: RegExpExecArray | null;
+    while ((m = open.exec(masked)) !== null) {
+        const before = masked.slice(0, m.index).trimEnd();
+        if (before === "" || /(:|#|\b(then|else))$/i.test(before)) continue;
+        let depth = 0;
+        for (let j = m.index + m[0].length - 1; j < masked.length; j++) {
+            if (masked[j] === "(") depth++;
+            else if (masked[j] === ")" && --depth === 0) {
+                spans.push({ start: m.index, end: j + 1 });
+                break;
+            }
+        }
+    }
+    return spans;
 }
 
 /** The first ":"-separated statement on the line that starts with `word` (or ""). */

@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-17
+
+### Added
+
+- Convention hint `thisserver-fallback`: an `If(...)` that combines `ThisApplication` and `ThisServer`. `ThisServer` is not an `Inventor.Application`, so iLogic reports "Cannot infer a common type" and the rule does not compile. Check both for `Nothing` instead.
+- Convention hint `ambiguous-name`: `File.` or `Environment.` without `System.IO.` / `System.` in front. Inventor has types with these names, so iLogic reports `File` as ambiguous and resolves `Environment` to `Inventor.Environment`.
+- Both come from rules that passed every hint and still failed to compile in Inventor; both can be turned off like the other hints.
+
 ## [1.11.0] - 2026-11-10
 
 ### Added

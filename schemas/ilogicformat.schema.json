@@ -49,7 +49,9 @@
           "interpolation",
           "empty-catch",
           "msgbox",
-          "option-strict"
+          "option-strict",
+          "thisserver-fallback",
+          "ambiguous-name"
         ]
       },
       "description": "Convention hints to turn off."

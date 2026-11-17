@@ -41,7 +41,7 @@ All settings are under `ilogicFormatter.*` in VS Code settings:
 | `vbFilesAreILogic`    | `true`  | Treat `.vb` files as iLogic rules: they open as iLogic VB, with its highlighting, snippets, hints and quick fixes. Turn off for regular VB.NET projects |
 | `formatVbFiles`       | `true`  | Format `.vb` files that are not treated as iLogic rules |
 | `warnUnbalancedBlocks` | `true` | Warnings for unbalanced blocks |
-| `disabledHints`       | `[]`    | Convention hints to turn off: `interpolation`, `empty-catch`, `msgbox`, `option-strict` |
+| `disabledHints`       | `[]`    | Convention hints to turn off: `interpolation`, `empty-catch`, `msgbox`, `option-strict`, `thisserver-fallback`, `ambiguous-name` |
 | `allowCommentedCatch` | `false` | Do not report an empty `Catch` that holds a comment |
 
 Example `settings.json`:

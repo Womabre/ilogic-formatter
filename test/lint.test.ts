@@ -48,6 +48,25 @@ describe("lint", () => {
         expect(hits("option strict on\nx = 1\n")).toEqual([]);
     });
 
+    test("If() that combines ThisApplication and ThisServer, not the guard or an If statement", () => {
+        expect(hits(S + "Dim oApp As Application = If(ThisApplication IsNot Nothing, ThisApplication, ThisServer)\n"))
+            .toEqual(["2:26-88 thisserver-fallback"]);
+        expect(hits(S + "x = If(ThisServer, ThisApplication)\n")).toEqual(["2:4-35 thisserver-fallback"]);
+        expect(hits(S + "If ThisApplication Is Nothing AndAlso ThisServer Is Nothing Then\nEnd If\n")).toEqual([]);
+        expect(hits(S + "If (ThisApplication Is Nothing AndAlso ThisServer Is Nothing) Then\nEnd If\n")).toEqual([]);
+        expect(hits(S + "If a Then x = 1 Else If (ThisApplication Is Nothing AndAlso ThisServer Is Nothing) Then y = 2\n")).toEqual([]);
+        expect(hits(S + "x = If(ThisApplication IsNot Nothing, 1, 2)\n")).toEqual([]);
+        expect(hits(S + 's = "If(ThisApplication, ThisServer)" \' If(ThisApplication, ThisServer)\n')).toEqual([]);
+    });
+
+    test("File. and Environment. without their namespace", () => {
+        expect(hits(S + "Imports System.IO\nIf File.Exists(p) Then\nEnd If\n")).toEqual(["3:3-7 ambiguous-name"]);
+        expect(hits(S + "s = Environment.NewLine\n")).toEqual(["2:4-15 ambiguous-name"]);
+        expect(hits(S + "If System.IO.File.Exists(p) Then\nEnd If\ns = System.Environment.NewLine\n")).toEqual([]);
+        expect(hits(S + "n = oDoc.File.FullFileName\nDim myFile As String = p\nx = myFile.Length\n")).toEqual([]);
+        expect(hits(S + 's = "File.Exists" \' Environment.NewLine\n')).toEqual([]);
+    });
+
     test("rules can be turned off", () => {
         expect(hits("MsgBox(1)\n", ["msgbox", "option-strict"])).toEqual([]);
     });

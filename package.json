@@ -2,7 +2,7 @@
   "name": "ilogic-formatter",
   "displayName": "iLogic Formatter",
   "description": "Formatter, outline, completion, parameter hints and convention hints for Autodesk Inventor iLogic rules (.iLogicVb and .vb)",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "publisher": "Womabre",
   "license": "MIT",
   "icon": "icon.png",
@@ -151,13 +151,17 @@
               "interpolation",
               "empty-catch",
               "msgbox",
-              "option-strict"
+              "option-strict",
+              "thisserver-fallback",
+              "ambiguous-name"
             ],
             "enumDescriptions": [
               "$\"...\" strings (not supported in iLogic)",
               "Catch blocks that discard the exception",
               "MsgBox / MessageBox.Show used for messages instead of Logger",
-              "Rules without Option Strict On"
+              "Rules without Option Strict On",
+              "If(ThisApplication ..., ThisServer): no common type, does not compile",
+              "File. or Environment. without System.IO / System in front (Inventor has types with these names)"
             ]
           },
           "description": "iLogic convention hints to turn off (shown for .iLogicVb files)."

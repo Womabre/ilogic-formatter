@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { dirname } from "path";
-import { CONFIG_FILE, ConfigError, configFor, FileConfig, formatOptionsOf } from "./config";
+import { CONFIG_FILE, ConfigError, configFor, isRuleFile, resolveSettings, RuleSettings, SettingsLayer } from "./config";
 import { analyzeBlocks, BlockProblem, format, FormatOptions, formatRange } from "./formatter";
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
 import { hoverAt, memberInsertion, memberMarkdown, objectMarkdown, signatureAt, suggestionsFor } from "./completion";
@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
      * is reported once and then ignored, so the editor keeps working.
      */
     const reportedConfigProblems = new Set<string>();
-    function fileConfig(document: vscode.TextDocument): FileConfig {
+    function fileConfig(document: vscode.TextDocument): SettingsLayer {
         if (document.uri.scheme !== "file") return {};
         try {
             return configFor(dirname(document.uri.fsPath)).config;
@@ -67,28 +67,37 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     /**
-     * Formatter options for a document. indentSize and useTabs follow the
-     * editor's Tab Size / Insert Spaces unless the user set them explicitly.
-     * Out-of-range numbers from settings.json are clamped. A .ilogicformat.json
-     * next to or above the file wins over all of these, so the editor formats
-     * the way ilogic-format does.
+     * The rule settings for a document, from three layers (see resolveSettings):
+     * the editor's Tab Size / Insert Spaces, then the ilogicFormatter settings
+     * (indentSize and useTabs only when set explicitly), then the
+     * .ilogicformat.json next to or above the file, so the editor formats the
+     * way ilogic-format does. Out-of-range numbers from settings.json are clamped.
      */
-    function getOptions(document: vscode.TextDocument, editor?: EditorIndent): FormatOptions {
+    function ruleSettings(document: vscode.TextDocument, editor?: EditorIndent): RuleSettings {
         const config = vscode.workspace.getConfiguration("ilogicFormatter", document);
         const indentSize = config.get<number | null>("indentSize", null);
-        const useTabs = config.get<boolean | null>("useTabs", null);
-        const editorTabSize = typeof editor?.tabSize === "number" ? editor.tabSize : 4;
-        const editorUsesTabs = typeof editor?.insertSpaces === "boolean" ? !editor.insertSpaces : false;
-        return {
-            indentSize: clamp(indentSize ?? editorTabSize, 1, 16, 4),
-            useTabs: useTabs ?? editorUsesTabs,
+        const editorIndent: SettingsLayer = {
+            indentSize: typeof editor?.tabSize === "number" ? clamp(editor.tabSize, 1, 16, 4) : undefined,
+            useTabs: typeof editor?.insertSpaces === "boolean" ? !editor.insertSpaces : undefined,
+        };
+        const settings: SettingsLayer = {
+            indentSize: indentSize === null ? undefined : clamp(indentSize, 1, 16, 4),
+            useTabs: config.get<boolean | null>("useTabs", null) ?? undefined,
             maxBlankLines: clamp(config.get("maxBlankLines", 1), 0, 100, 1),
             blankLineAfterBlock: config.get("blankLineAfterBlock", true),
             normalizeKeywords: config.get("normalizeKeywords", true),
             normalizeComments: config.get("normalizeComments", true),
             normalizeUnicode: config.get("normalizeUnicode", true),
-            ...formatOptionsOf(fileConfig(document)),
+            disabledHints: config.get<LintRule[]>("disabledHints", []),
+            allowCommentedCatch: config.get("allowCommentedCatch", false),
+            vbFilesAreILogic: config.get("vbFilesAreILogic", true),
         };
+        return resolveSettings(editorIndent, settings, fileConfig(document));
+    }
+
+    /** Formatter options for a document (see ruleSettings). */
+    function getOptions(document: vscode.TextDocument, editor?: EditorIndent): FormatOptions {
+        return ruleSettings(document, editor).format;
     }
 
     /**
@@ -291,8 +300,7 @@ export function activate(context: vscode.ExtensionContext) {
     const isVbFile = (document: vscode.TextDocument) => /\.vb$/i.test(document.fileName);
     // A .ilogicformat.json above the file decides first, so a folder of regular
     // VB.NET code can opt out for everyone who opens it
-    const vbIsILogic = (document: vscode.TextDocument) =>
-        fileConfig(document).vbFilesAreILogic ?? vscode.workspace.getConfiguration("ilogicFormatter", document).get("vbFilesAreILogic", true);
+    const vbIsILogic = (document: vscode.TextDocument) => isRuleFile(document.fileName, ruleSettings(document));
 
     function setLanguage(document: vscode.TextDocument, languageId: string) {
         // Fails only when the document closed in the meantime: nothing to switch then
@@ -370,11 +378,8 @@ export function activate(context: vscode.ExtensionContext) {
             hints.delete(document.uri);
             return;
         }
-        const settings = vscode.workspace.getConfiguration("ilogicFormatter", document);
-        const file = fileConfig(document);
-        const disabled = [...settings.get<LintRule[]>("disabledHints", []), ...(file.disabledHints ?? [])];
-        const allowCommentedCatch = file.allowCommentedCatch ?? settings.get("allowCommentedCatch", false);
-        hints.set(document.uri, lint(document.getText(), disabled, { allowCommentedCatch }).map((p) => {
+        const { hints: choices } = ruleSettings(document);
+        hints.set(document.uri, lint(document.getText(), choices.disabled, choices).map((p) => {
             const diagnostic = new vscode.Diagnostic(new vscode.Range(p.line, p.start, p.line, p.end), p.message,
                 p.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Information);
             diagnostic.source = "iLogic conventions";

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { CONFIG_FILE, CONFIG_KEYS, ConfigError, configFor, findConfigFile, formatOptionsOf, parseConfig } from "../src/config";
+import { CONFIG_FILE, CONFIG_KEYS, ConfigError, configFor, findConfigFile, isRuleFile, parseConfig, resolveSettings } from "../src/config";
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), "ilogic-config-")));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -15,7 +15,11 @@ describe(".ilogicformat.json", () => {
         });
         const config = parseConfig(text, "f");
         expect(Object.keys(config).sort()).toEqual(Object.keys(CONFIG_KEYS).sort());
-        expect(formatOptionsOf(config)).toEqual({ indentSize: 2, useTabs: true, maxBlankLines: 0, blankLineAfterBlock: false, normalizeKeywords: false, normalizeComments: false, normalizeUnicode: false });
+        expect(resolveSettings(config)).toEqual({
+            format: { indentSize: 2, useTabs: true, maxBlankLines: 0, blankLineAfterBlock: false, normalizeKeywords: false, normalizeComments: false, normalizeUnicode: false },
+            hints: { disabled: ["msgbox", "option-strict"], allowCommentedCatch: true },
+            vbFilesAreILogic: false,
+        });
     });
 
     test("says what is wrong with a file it cannot use", () => {
@@ -58,5 +62,47 @@ describe(".ilogicformat.json", () => {
         const pkg = JSON.parse(readFileSync(join(import.meta.dir, "..", "package.json"), "utf8"));
         expect(pkg.contributes.jsonValidation[0]).toEqual({ fileMatch: CONFIG_FILE, url: "./schemas/ilogicformat.schema.json" });
         expect(schema.properties.disabledHints.items.enum).toEqual(pkg.contributes.configuration.properties["ilogicFormatter.disabledHints"].items.enum);
+    });
+});
+
+describe("rule settings", () => {
+    test("with no layers, the defaults", () => {
+        expect(resolveSettings()).toEqual({
+            format: { indentSize: 4, useTabs: false, maxBlankLines: 1, blankLineAfterBlock: true, normalizeKeywords: true, normalizeComments: true, normalizeUnicode: true },
+            hints: { disabled: [], allowCommentedCatch: false },
+            vbFilesAreILogic: true,
+        });
+    });
+
+    test("the most specific layer that sets a choice wins", () => {
+        const editor = { indentSize: 2, useTabs: true, allowCommentedCatch: true };
+        const file = { indentSize: 3, vbFilesAreILogic: false };
+        const flags = { indentSize: 8 };
+        const settings = resolveSettings(editor, file, flags);
+        expect(settings.format.indentSize).toBe(8);
+        expect(settings.format.useTabs).toBe(true); // only the editor set it
+        expect(settings.hints.allowCommentedCatch).toBe(true);
+        expect(settings.vbFilesAreILogic).toBe(false);
+        expect(resolveSettings(flags, file, editor).format.indentSize).toBe(2);
+    });
+
+    test("an unset key never overrides a set one, also when it is null", () => {
+        const unset = { indentSize: undefined, useTabs: null as unknown as undefined, allowCommentedCatch: undefined };
+        const settings = resolveSettings({ indentSize: 2, useTabs: true, allowCommentedCatch: true }, unset);
+        expect([settings.format.indentSize, settings.format.useTabs, settings.hints.allowCommentedCatch]).toEqual([2, true, true]);
+    });
+
+    test("disabled hints from every layer add up, each once", () => {
+        expect(resolveSettings({ disabledHints: ["msgbox"] }, { disabledHints: ["msgbox", "empty-catch"] }, {}).hints.disabled)
+            .toEqual(["msgbox", "empty-catch"]);
+    });
+
+    test("which files are rules", () => {
+        const vbIsRule = resolveSettings();
+        const vbIsNot = resolveSettings({ vbFilesAreILogic: false });
+        expect(["a.iLogicVb", "A.ILOGICVB", "b.vb", "c.vbs", "d.bas", "e.txt"].map((p) => isRuleFile(p, vbIsRule)))
+            .toEqual([true, true, true, false, false, false]);
+        expect(["a.iLogicVb", "b.vb"].map((p) => isRuleFile(p, vbIsNot))).toEqual([true, false]);
+        expect(isRuleFile(null, vbIsNot)).toBe(true); // standard input
     });
 });

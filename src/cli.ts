@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
 import { dirname, resolve } from "path";
-import { CONFIG_FILE, ConfigError, configFor, FileConfig, formatOptionsOf, readConfigFile } from "./config";
+import { CONFIG_FILE, ConfigError, configFor, isRuleFile, readConfigFile, resolveSettings, RuleSettings, SettingsLayer } from "./config";
 import { analyzeBlocks, format, FormatOptions } from "./formatter";
 import { lint, LINT_RULES, LintRule } from "./lint";
 
@@ -130,14 +130,14 @@ function parseArgs(argv: string[]): Args | "help" | "version" {
 }
 
 /** Files to process: explicit files as given, directories searched for rules. */
-function collectFiles(paths: string[], vbIsILogic: (path: string) => boolean): string[] {
+function collectFiles(paths: string[], isRule: (path: string) => boolean): string[] {
     const files: string[] = [];
     const walk = (dir: string) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
             if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
             const full = join(dir, entry.name);
             if (entry.isDirectory()) walk(full);
-            else if (/\.ilogicvb$/i.test(entry.name) || (/\.vb$/i.test(entry.name) && vbIsILogic(full))) files.push(full);
+            else if (isRule(full)) files.push(full);
         }
     };
     for (const p of paths) {
@@ -180,35 +180,36 @@ interface Finding {
     message: string;
 }
 
-/** The settings for one rule: its settings file (if any), then the command line on top. */
-function settingsFor(dir: string, args: Args): Required<Pick<FileConfig, "disabledHints">> & FileConfig {
+/** The rule settings for a rule in `dir`: its settings file (if any), then the command line on top. */
+function settingsFor(dir: string, args: Args): RuleSettings {
     const file = args.config === false ? {} : args.config !== undefined ? readConfigFile(resolve(args.config)) : configFor(resolve(dir)).config;
-    return {
-        ...file,
+    const flags: SettingsLayer = {
         ...args.options,
-        disabledHints: [...new Set([...(file.disabledHints ?? []), ...args.disabledHints])],
-        allowCommentedCatch: args.allowCommentedCatch ?? file.allowCommentedCatch,
-        vbFilesAreILogic: args.vb ?? file.vbFilesAreILogic ?? true,
+        disabledHints: args.disabledHints,
+        allowCommentedCatch: args.allowCommentedCatch,
+        vbFilesAreILogic: args.vb,
     };
+    return resolveSettings(file, flags);
 }
 
-/** Whether a .vb file found in a directory is a rule. A settings file that cannot be read is reported when the file is processed. */
-function vbIsILogic(path: string, args: Args): boolean {
+/** Whether a file found in a directory is a rule. A settings file that cannot be read is reported when the file is processed. */
+function isRule(path: string, args: Args): boolean {
+    if (!/\.(ilogicvb|vb)$/i.test(path)) return false; // no settings lookup for other files
     try {
-        return settingsFor(dirname(path), args).vbFilesAreILogic !== false;
+        return isRuleFile(path, settingsFor(dirname(path), args));
     } catch (e) {
-        if (e instanceof ConfigError) return true;
+        if (e instanceof ConfigError) return isRuleFile(path, resolveSettings());
         throw e;
     }
 }
 
-function findings(raw: string, path: string, settings: FileConfig): Finding[] {
-    const text = raw.replace(/^﻿/, "");
+/** Block warnings for every file; convention hints for rules only ($"..." is valid in regular VB.NET). `path` null is stdin. */
+function findings(raw: string, path: string | null, settings: RuleSettings): Finding[] {
+    const text = raw.replace(/^\uFEFF/, "");
     const blocks: Finding[] = analyzeBlocks(text).problems.map((p) => ({ line: p.line + 1, severity: "warning", rule: "blocks", message: p.message }));
-    const isRule = /\.ilogicvb$/i.test(path) || path === "<stdin>" || (/\.vb$/i.test(path) && settings.vbFilesAreILogic !== false);
-    const hints: Finding[] = isRule
-        ? lint(text, settings.disabledHints, settings).map((p) => ({ line: p.line + 1, severity: p.severity, rule: p.rule, message: p.message }))
-        : []; // convention hints are for iLogic rules; $"..." is valid in regular VB.NET
+    const hints: Finding[] = isRuleFile(path, settings)
+        ? lint(text, settings.hints.disabled, settings.hints).map((p) => ({ line: p.line + 1, severity: p.severity, rule: p.rule, message: p.message }))
+        : [];
     return [...blocks, ...hints].sort((a, b) => a.line - b.line);
 }
 
@@ -241,7 +242,7 @@ function main(argv: string[]): number {
             process.stderr.write(`ilogic-format: <stdin> ${(e as Error).message}\n`);
             return 2;
         }
-        let settings: FileConfig;
+        let settings: RuleSettings;
         try {
             settings = settingsFor(process.cwd(), args);
         } catch (e) {
@@ -249,8 +250,8 @@ function main(argv: string[]): number {
             process.stderr.write(`ilogic-format: ${e.message}\n`);
             return 2;
         }
-        const options = formatOptionsOf(settings);
-        const found = args.lint ? findings(raw, "<stdin>", settings) : [];
+        const options = settings.format;
+        const found = args.lint ? findings(raw, null, settings) : [];
         if (args.json) process.stdout.write(JSON.stringify({ formatted: formatFileText(raw, options).text, findings: found }, null, 2) + "\n");
         else if (args.lint) printFindings("<stdin>", found);
         else process.stdout.write(formatFileText(raw, options).text);
@@ -260,7 +261,7 @@ function main(argv: string[]): number {
     let files: string[];
     try {
         const given = args;
-        files = collectFiles(args.paths, (path) => vbIsILogic(path, given));
+        files = collectFiles(args.paths, (path) => isRule(path, given));
     } catch (e) {
         process.stderr.write(`ilogic-format: ${(e as Error).message}\n`);
         return 2;
@@ -276,7 +277,7 @@ function main(argv: string[]): number {
     const results: { path: string; changed?: boolean; written?: boolean; findings?: Finding[]; error?: string }[] = [];
     for (const path of files) {
         let raw: string;
-        let settings: FileConfig;
+        let settings: RuleSettings;
         try {
             raw = decodeUtf8(readFileSync(path));
             settings = settingsFor(dirname(path), args);
@@ -286,7 +287,7 @@ function main(argv: string[]): number {
             if (!args.json) process.stderr.write(`ilogic-format: ${path}: ${(e as Error).message}\n`);
             continue;
         }
-        const { text, changed } = formatFileText(raw, formatOptionsOf(settings));
+        const { text, changed } = formatFileText(raw, settings.format);
         const result: (typeof results)[number] = { path };
         if (printMode) {
             if (!args.json) process.stdout.write(text);

@@ -27,6 +27,14 @@ _Avoid_: branch, arm, middle
 The blocks of a rule and the problems with them (a closer without an opener, a block never closed), always taken from the text as written.
 _Avoid_: block check
 
+**Settings file**:
+The `.ilogicformat.json` nearest at or above a rule's folder, holding the formatting and hint choices for the rules below it.
+_Avoid_: config file
+
+**Rule settings**:
+The formatting and hint choices that apply to one rule, taken from the defaults, the editor's settings, the settings file and command-line flags, the most specific source winning.
+_Avoid_: options, config
+
 **Hint**:
 A convention check on a rule (no string interpolation, no empty Catch, Option Strict On, ...), shown as a diagnostic with an optional quick fix.
 _Avoid_: lint warning, convention diagnostic

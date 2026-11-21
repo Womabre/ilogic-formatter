@@ -11,7 +11,7 @@ export interface FormatOptions {
     normalizeUnicode?: boolean;
 }
 
-const DEFAULT_OPTIONS: Required<FormatOptions> = {
+export const DEFAULT_OPTIONS: Required<FormatOptions> = {
     indentSize: 4,
     useTabs: false,
     maxBlankLines: 1,

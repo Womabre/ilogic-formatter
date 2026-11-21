@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - Internal: every module that reads a rule line by line now shares one scan of it, with the multi-line string state carried from line to line, instead of five separate loops.
 - Internal: block analysis records what each section of a block is (Else, Case, Catch, Finally) and whether it holds code; the empty-Catch hint reads that instead of re-parsing the statements.
+- Internal: the editor and `ilogic-format` hand their settings sources (editor settings, `.ilogicformat.json`, command-line flags) to one resolver that applies the same rule for both: the most specific source wins and disabled hints add up.
 
 ## [1.12.0] - 2026-11-17
 

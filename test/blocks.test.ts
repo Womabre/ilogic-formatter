@@ -106,6 +106,34 @@ describe("analyzeBlocks problems", () => {
         expect(messages("If a = „x Then\nEnd If\n")).toEqual([]);
     });
 
+    test("each section line says what it is", () => {
+        const kinds = (text: string, keyword: string) =>
+            analyzeBlocks(text).spans.filter((s) => s.keyword === keyword).flatMap((s) => s.middles.map((m) => `${m.line + 1} ${m.kind}`));
+        expect(kinds("If a Then\nx()\nElseIf b Then\ny()\nElse\nz()\nEnd If\n", "if")).toEqual(["3 else", "5 else"]);
+        expect(kinds("Select Case x\nCase 1\na()\nCase Else\nb()\nEnd Select\n", "select")).toEqual(["2 case", "4 case"]);
+        expect(kinds("Try\nx()\nCatch ex As Exception\ny()\nFinally\nz()\nEnd Try\n", "try")).toEqual(["3 catch", "5 finally"]);
+        expect(kinds("#If DEBUG Then\nx()\n#Else\ny()\n#End If\n", "#if")).toEqual(["3 else"]);
+    });
+
+    test("a section is empty when it holds no code, only comments or blank lines", () => {
+        const catches = (text: string) => analyzeBlocks(text).spans.filter((s) => s.keyword === "try")
+            .flatMap((s) => s.middles.filter((m) => m.kind === "catch").map((m) => m.empty));
+        expect(catches("Try\nx()\nCatch\n' nothing to do\n\nEnd Try\n")).toEqual([true]);
+        expect(catches("Try\nx()\nCatch\nIf a Then\nEnd If\nEnd Try\n")).toEqual([false]); // a nested block
+        expect(catches("Try : x() : Catch : n = 0 : End Try\n")).toEqual([false]); // after the Catch's colon
+        expect(catches("Try : x() : Catch : End Try\n")).toEqual([true]);
+        expect(catches("Try\nx()\nCatch\nn = 0 : End Try\n")).toEqual([false]); // before the closer on the closing line
+        expect(catches("Try\nx()\nCatch\nretry:\nEnd Try\n")).toEqual([false]); // a label is code
+        expect(catches("Try\nx()\nCatch\nFinally\ny()\nEnd Try\n")).toEqual([true]); // Finally's code is its own
+        expect(catches("Try\nx()\nCatch\n#If DEBUG Then\n#End If\nEnd Try\n")).toEqual([false]); // a directive is code
+    });
+
+    test("each #If branch starts from the state at #If: a Catch from an earlier branch is not kept", () => {
+        const text = "Try\nx()\n#If A Then\nCatch\ny()\n#Else\nCatch\n#End If\nEnd Try\n";
+        const [span] = analyzeBlocks(text).spans.filter((s) => s.keyword === "try");
+        expect(span.middles.map((m) => [m.line + 1, m.kind, m.empty])).toEqual([[7, "catch", false]]);
+    });
+
     test("labels do not disturb block pairing", () => {
         expect(analyzeBlocks("Sub Main()\nretry:\nIf a Then GoTo retry\n10:\nEnd Sub\n").problems).toEqual([]);
     });

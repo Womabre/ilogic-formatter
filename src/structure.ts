@@ -36,7 +36,7 @@ export function foldingRanges(text: string): FoldRange[] {
     // Blocks keep their closing line visible, like indentation-based folding:
     // "If x Then ..." / "Else ..." / "End If"
     for (const span of analyzeBlocks(text).spans) {
-        const bounds = [span.start, ...span.middles, span.end];
+        const bounds = [span.start, ...span.middles.map((middle) => middle.line), span.end];
         for (let k = 0; k + 1 < bounds.length; k++) {
             if (bounds[k + 1] - 1 > bounds[k]) ranges.push({ start: bounds[k], end: bounds[k + 1] - 1 });
         }

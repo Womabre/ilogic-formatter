@@ -155,8 +155,22 @@ export interface BlockSpan {
     keyword: string;
     start: number;
     end: number;
-    readonly middles: readonly number[];
+    /** The Else/Case/Catch/Finally lines, each starting a section, in order. */
+    readonly middles: readonly BlockMiddle[];
 }
+
+/** The line that starts a section inside a block, and what that section holds. */
+export interface BlockMiddle {
+    readonly line: number;
+    /** else: Else, ElseIf, #Else, #ElseIf · case: Case, Case Else · catch · finally */
+    readonly kind: MiddleKind;
+    /** The section this line starts holds no code: only comments or blank lines. */
+    readonly empty: boolean;
+}
+
+export type MiddleKind = "else" | "case" | "catch" | "finally";
+
+type OpenBlock = { keyword: string; line: number; middles: { line: number; kind: MiddleKind; empty: boolean }[] };
 
 /**
  * The blocks of a rule and the problems with them: End If without If, End Sub
@@ -202,7 +216,7 @@ function runBlockAnalysis(text: string): BlockAnalysis {
  * End If gives one warning instead of a cascade.
  */
 class BlockChecker {
-    private stack: { keyword: string; line: number; middles: number[] }[] = [];
+    private stack: OpenBlock[] = [];
     private problems: BlockProblem[] = [];
     readonly spans: BlockSpan[] = [];
 
@@ -227,8 +241,8 @@ class BlockChecker {
         this.stack.length = match;
     }
 
-    /** "Else", "Case", "Catch", ...: must sit directly inside one of `keywords`. */
-    middle(keywords: string[], statement: string, line: number): void {
+    /** "Else", "Case", "Catch", ...: must sit directly inside one of `keywords`. Starts an empty section. */
+    middle(keywords: string[], kind: MiddleKind, statement: string, line: number): void {
         const match = this.find(keywords);
         if (match < 0) {
             this.problems.push({ line, message: `${statement} has no matching ${blockName(keywords[0])}` });
@@ -236,16 +250,23 @@ class BlockChecker {
         }
         this.reportSkipped(match, statement, line);
         this.stack.length = match + 1;
-        this.stack[match].middles.push(line);
+        this.stack[match].middles.push({ line, kind, empty: true });
+    }
+
+    /** Code sits in the innermost open block: its current section (if it has started one) is not empty. */
+    code(): void {
+        const middles = this.stack[this.stack.length - 1]?.middles;
+        const current = middles?.[middles.length - 1];
+        if (current) current.empty = false;
     }
 
     /** The open blocks, to rewind to at #Else (each #If branch starts from the same state). */
-    snapshot(): { keyword: string; line: number; middles: number[] }[] {
-        return this.stack.map((open) => ({ ...open, middles: [...open.middles] }));
+    snapshot(): OpenBlock[] {
+        return this.stack.map(copyOpenBlock);
     }
 
-    restore(snapshot: { keyword: string; line: number; middles: number[] }[]): void {
-        this.stack = snapshot.map((open) => ({ ...open, middles: [...open.middles] }));
+    restore(snapshot: OpenBlock[]): void {
+        this.stack = snapshot.map(copyOpenBlock);
     }
 
     finish(): BlockProblem[] {
@@ -274,6 +295,11 @@ class BlockChecker {
     }
 }
 
+/** A deep copy: a section's emptiness found in one #If branch must not leak into another. */
+function copyOpenBlock(open: OpenBlock): OpenBlock {
+    return { ...open, middles: open.middles.map((middle) => ({ ...middle })) };
+}
+
 const BLOCK_NAMES: Record<string, string> = { select: "Select Case", lambda_sub: "Sub lambda", lambda_function: "Function lambda" };
 
 function blockName(keyword: string): string {
@@ -296,7 +322,7 @@ interface Checkers {
     code: BlockChecker;
     directives: BlockChecker;
     /** Code-block state at each open #If, innermost last */
-    branchStarts: { keyword: string; line: number; middles: number[] }[][];
+    branchStarts: OpenBlock[][];
 }
 
 /**
@@ -625,39 +651,54 @@ function formatLines(text: string, opts: Required<FormatOptions>, checkers?: Che
 /** Reports what a closing or middle statement (End If, Else, Case, ...) does to the open blocks. */
 function checkStatement(checkers: Checkers, c: LineClass, statement: string, line: number): void {
     const s = stripAttributes(statement).trim();
+    if (s === "") return; // a comment-only or blank line holds no statement
     const directive = s.startsWith("#");
     const checker = directive ? checkers.directives : checkers.code;
     const prefix = directive ? "#" : "";
     const words = s.match(/[a-z][a-z0-9_]*/g) ?? [];
     const name = statementName(statement);
+    // Every statement is code in the section around it, except the Else/Case/Catch
+    // that starts a section of its own block. A directive is code in the section
+    // of the code block around it; a closer, in the section the closed block sat in.
+    const isMiddle = c === "case" || c === "else" || c === "catch" || c === "finally";
+    const markCode = () => {
+        checkers.code.code();
+        if (!directive) checkers.directives.code();
+    };
     switch (c) {
         case "closer": {
             if (words[0] === "next") {
                 for (let k = 0; k < closingBlockCount(s); k++) checker.close(["for"], name, line);
-                return;
+            } else if (words[0] === "loop") {
+                checker.close(["do"], name, line);
+            } else {
+                if (directive && words[1] === "if") checkers.branchStarts.pop();
+                // End Sub / End Function close a lambda of that kind too
+                const keyword = prefix + (words[1] ?? "");
+                const keywords = keyword === "sub" || keyword === "function" ? ["lambda_" + keyword, keyword] : [keyword];
+                checker.close(keywords, name, line);
             }
-            if (words[0] === "loop") return checker.close(["do"], name, line);
-            if (directive && words[1] === "if") checkers.branchStarts.pop();
-            // End Sub / End Function close a lambda of that kind too
-            const keyword = prefix + (words[1] ?? "");
-            const keywords = keyword === "sub" || keyword === "function" ? ["lambda_" + keyword, keyword] : [keyword];
-            return checker.close(keywords, name, line);
+            return markCode();
         }
         case "end-select":
-            return checker.close(["select"], name, line);
+            checker.close(["select"], name, line);
+            return markCode();
         case "case":
-            return checker.middle(["select"], name, line);
+            return checker.middle(["select"], "case", name, line);
         case "else":
             // #Else / #ElseIf: the code in this branch starts from the state at #If
             if (directive) {
                 const start = checkers.branchStarts[checkers.branchStarts.length - 1];
                 if (start) checkers.code.restore(start);
+                checkers.code.code();
             }
-            return checker.middle([prefix + "if"], name, line);
+            return checker.middle([prefix + "if"], "else", name, line);
         case "catch":
         case "finally":
-            return checker.middle(["try"], name, line);
+            return checker.middle(["try"], c, name, line);
     }
+    // Openers mark the section they open in, before postIndent opens their block
+    if (!isMiddle) markCode();
 }
 
 // ── Classifier ───────────────────────────────────────────────────────────────
@@ -869,7 +910,7 @@ function netParens(text: string): number {
  * literals (#12:00#) and in directives are not separators. An If statement
  * takes the rest of the line: "If x Then a : b" is one single-line If.
  */
-export function splitStatements(norm: string): string[] {
+function splitStatements(norm: string): string[] {
     if (norm.startsWith("#")) return norm === "" ? [] : [norm];
     const statements: string[] = [];
     let depth = 0;

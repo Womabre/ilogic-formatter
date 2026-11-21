@@ -19,6 +19,10 @@ _Avoid_: line info, tokenized line, logical line
 **Block**:
 A matched opener and closer (`Sub`…`End Sub`, `If`…`End If`, `#If`…`#End If`), with the `Else`/`Case`/`Catch` lines in between.
 
+**Section**:
+The part of a block between two of its bounds: the opener, an `Else`/`Case`/`Catch`/`Finally` line, or the closer. An empty section holds no code, only comments or blank lines.
+_Avoid_: branch, arm, middle
+
 **Block analysis**:
 The blocks of a rule and the problems with them (a closer without an opener, a block never closed), always taken from the text as written.
 _Avoid_: block check

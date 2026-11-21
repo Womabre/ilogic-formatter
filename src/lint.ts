@@ -3,7 +3,7 @@
 // for notifications, Option Strict On, and two compile errors that look fine:
 // If(ThisApplication, ThisServer) and short BCL names that Inventor also uses.
 
-import { analyzeBlocks, splitStatements } from "./formatter";
+import { analyzeBlocks } from "./formatter";
 import { ScannedLine, scanLines } from "./tokenizer";
 
 export const LINT_RULES = ["interpolation", "empty-catch", "msgbox", "option-strict", "thisserver-fallback", "ambiguous-name"] as const;
@@ -94,24 +94,24 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
         }
     });
 
-    // Catch with nothing in it
+    // Catch with nothing in it: block analysis knows each section's kind and whether it holds code
     if (on("empty-catch")) {
         for (const span of analyzeBlocks(text).spans.filter((s) => s.keyword === "try")) {
-            const bounds = [...span.middles, span.end];
-            for (let k = 0; k < span.middles.length; k++) {
-                const catchLine = span.middles[k];
-                if (!/^catch\b/.test(statementStarting(all[catchLine].lower, "catch"))) continue;
-                const next = bounds[k + 1];
-                if (!catchIsEmpty(all, catchLine, next)) continue;
-                if (options.allowCommentedCatch && all.slice(catchLine, Math.max(next, catchLine + 1)).some((l) => l.hasComment)) continue;
-                // In the masked line, so a "catch" inside a string or comment is never taken
-                // (not a member or escaped name: x.[Catch]())
-                const start = all[catchLine].masked.search(/(?<![.\[])\bcatch\b/i);
+            span.middles.forEach((middle, k) => {
+                if (middle.kind !== "catch" || !middle.empty) return;
+                const next = span.middles[k + 1]?.line ?? span.end;
+                if (options.allowCommentedCatch && all.slice(middle.line, Math.max(next, middle.line + 1)).some((l) => l.hasComment)) return;
+                // The nth Catch of this block on its line ("Try : a : Catch : b : Catch e As E : End Try"),
+                // found in the masked line, so a "catch" in a string or comment, a member
+                // or an escaped name (x.[Catch]()) is never taken
+                const nth = span.middles.slice(0, k).filter((m) => m.kind === "catch" && m.line === middle.line).length;
+                const found = [...all[middle.line].masked.matchAll(/(?<![.\[])\bcatch\b/gi)];
+                const start = (found[nth] ?? found[0])?.index ?? 0;
                 problems.push({
-                    rule: "empty-catch", severity: "warning", line: catchLine, start, end: start + 5,
+                    rule: "empty-catch", severity: "warning", line: middle.line, start, end: start + 5,
                     message: "This Catch discards the exception. Log it, e.g. Logger.Error(\"...: \" & ex.Message).",
                 });
-            }
+            });
         }
     }
 
@@ -144,23 +144,4 @@ function ifCalls(masked: string): { start: number; end: number }[] {
         }
     }
     return spans;
-}
-
-/** The first ":"-separated statement on the line that starts with `word` (or ""). */
-function statementStarting(code: string, word: string): string {
-    return splitStatements(code).find((s) => s.startsWith(word)) ?? "";
-}
-
-/** Nothing runs between this Catch and the next Catch/Finally/End Try. */
-function catchIsEmpty(all: Line[], catchLine: number, nextBound: number): boolean {
-    // Statements after the Catch on its own line ("Catch : x = 0 : End Try")
-    const statements = splitStatements(all[catchLine].lower);
-    const after = statements.slice(statements.findIndex((s) => s.startsWith("catch")) + 1);
-    const ownLine = after.filter((s) => !/^(catch|finally|end\s+try)\b/.test(s));
-    if (ownLine.length > 0) return false;
-    if (nextBound === catchLine) return true;
-    for (let j = catchLine + 1; j < nextBound; j++) if (all[j].lower !== "") return false;
-    // The closing line itself may start with statements ("x = 1 : End Try" is rare but valid)
-    const closing = splitStatements(all[nextBound].lower);
-    return closing.length <= 1 || /^(catch|finally|end\s+try)\b/.test(closing[0]);
 }

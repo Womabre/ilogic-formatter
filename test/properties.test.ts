@@ -85,7 +85,10 @@ describe("for any rule", () => {
             const lines = text.split("\n").length;
             const inside = (n: number) => Number.isInteger(n) && n >= 0 && n < lines;
             const { problems, spans } = analyzeBlocks(text);
-            return problems.every((p) => inside(p.line)) && spans.every((s) => inside(s.start) && inside(s.end) && s.start <= s.end) &&
+            // Section lines lie inside their block, in order
+            const ordered = (s: (typeof spans)[number]) =>
+                [s.start, ...s.middles.map((m) => m.line), s.end].every((line, k, all) => k === 0 || all[k - 1] <= line);
+            return problems.every((p) => inside(p.line)) && spans.every((s) => inside(s.start) && inside(s.end) && s.start <= s.end && ordered(s)) &&
                 foldingRanges(text).every((r) => inside(r.start) && inside(r.end) && r.start < r.end) &&
                 lint(text).every((p) => inside(p.line) && p.start >= 0 && p.end >= p.start) &&
                 Array.isArray(outline(text));

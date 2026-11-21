@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 
 - Internal: every module that reads a rule line by line now shares one scan of it, with the multi-line string state carried from line to line, instead of five separate loops.
+- Internal: block analysis records what each section of a block is (Else, Case, Catch, Finally) and whether it holds code; the empty-Catch hint reads that instead of re-parsing the statements.
 
 ## [1.12.0] - 2026-11-17
 

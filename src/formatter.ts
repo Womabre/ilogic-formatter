@@ -350,12 +350,13 @@ function formatLines(text: string, opts: Required<FormatOptions>, checkers?: Che
         // ── Continuation of a multi-line string: emit verbatim ──────────────────
         // Trimming, re-indenting or dropping blank lines here would change the
         // string's value. A line that closes the string and has code after it
-        // ("def" : Sub Foo()) is still emitted verbatim, but that code is
-        // classified below like any other statement, so its blocks open and close.
+        // ("def" : Sub Foo(), also when a new string opens later on the line) is
+        // still emitted verbatim, but that code is classified below, so its
+        // blocks open and close.
         const verbatim = state.openString !== null;
         if (verbatim) {
             const tokenized = tokenizeLine(rawLine, state);
-            if (tokenized.endState.openString || codeOnly(tokenized.tokens.slice(1)).trim() === "") {
+            if (codeOnly(tokenized.tokens.slice(1)).trim() === "") {
                 state = tokenized.endState;
                 out[i].push(rawLine);
                 consecutiveBlanks = 0;
@@ -461,10 +462,14 @@ function formatLines(text: string, opts: Required<FormatOptions>, checkers?: Che
         // continue one: they also reset a paren count left open by unbalanced
         // code, so one bad line cannot shift the rest of the file. A comment-only
         // line ends a pending "_" or operator continuation, like a blank line.
-        const startsStatement = STATEMENT_ONLY.test(norm);
+        // On a verbatim line, the code after the closing quote continues the
+        // statement the string belongs to, unless a ":" ends that statement first
+        // ("y" And a.t = 1 stays inside the LINQ query; "def" : End If does not).
+        const continuesString = verbatim && !norm.startsWith(":");
+        const startsStatement = !continuesString && STATEMENT_ONLY.test(norm);
         if (startsStatement) parenDepth = 0;
-        const isContinuation: boolean = !startsStatement &&
-            (parenDepth > 0 || (norm !== "" && continuesStatement && !afterAttribute) || (inQuery && QUERY_CLAUSE.test(norm)));
+        const isContinuation: boolean = continuesString || (!startsStatement &&
+            (parenDepth > 0 || (norm !== "" && continuesStatement && !afterAttribute) || (inQuery && QUERY_CLAUSE.test(norm))));
         // A comment-only line leaves the query state as it is
         if (norm !== "") inQuery = (isContinuation && inQuery) || QUERY_START.test(norm);
         // A line can hold several statements separated by ":", e.g.

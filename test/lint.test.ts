@@ -35,6 +35,7 @@ describe("lint", () => {
 
     test("the empty-Catch hint points at the Catch, not at a \"catch\" in a string before it", () => {
         expect(hits(S + 'Try : s = "catch" : Catch : End Try\n')).toEqual(["2:20-25 empty-catch"]);
+        expect(hits(S + "Try : x.[Catch]() : Catch : End Try\n")).toEqual(["2:20-25 empty-catch"]);
     });
 
     test("code after the end of a multi-line string is checked like any other code", () => {

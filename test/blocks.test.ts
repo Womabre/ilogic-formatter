@@ -90,6 +90,17 @@ describe("analyzeBlocks problems", () => {
         expect(format(text).split("\n")[1]).toBe('def" : Sub Foo()');
     });
 
+    test("code after the closing quote continues the string's statement unless a colon ends it", () => {
+        // The tail stays inside the LINQ query, so "Select a" is a clause, not a Select Case
+        const query = 'Sub A()\nDim q = From a In b\nWhere a.s = "x\ny" And a.t = 1\nSelect a\nEnd Sub\n';
+        expect(analyzeBlocks(query).problems).toEqual([]);
+        expect(format(query)).toBe('Sub A()\n    Dim q = From a In b\n        Where a.s = "x\ny" And a.t = 1\n        Select a\nEnd Sub\n');
+        // A line that closes one string, has code, and opens another still has its code classified
+        const reopen = 'Sub A()\nIf a Then\nx = "abc\ndef" : End If : y = "abc\nghi"\nz = 1\nEnd Sub\n';
+        expect(analyzeBlocks(reopen).problems).toEqual([]);
+        expect(format(reopen).split("\n").slice(-3)).toEqual(["    z = 1", "End Sub", ""]);
+    });
+
     test("block analysis reads the text as written, whatever the formatting options", () => {
         // „ is not a VB string delimiter, so as written there is no string here and the If is open
         expect(messages("If a = „x Then\nEnd If\n")).toEqual([]);

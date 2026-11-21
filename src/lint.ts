@@ -105,7 +105,8 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
                 if (!catchIsEmpty(all, catchLine, next)) continue;
                 if (options.allowCommentedCatch && all.slice(catchLine, Math.max(next, catchLine + 1)).some((l) => l.hasComment)) continue;
                 // In the masked line, so a "catch" inside a string or comment is never taken
-                const start = all[catchLine].masked.search(/\bcatch\b/i);
+                // (not a member or escaped name: x.[Catch]())
+                const start = all[catchLine].masked.search(/(?<![.\[])\bcatch\b/i);
                 problems.push({
                     rule: "empty-catch", severity: "warning", line: catchLine, start, end: start + 5,
                     message: "This Catch discards the exception. Log it, e.g. Logger.Error(\"...: \" & ex.Message).",

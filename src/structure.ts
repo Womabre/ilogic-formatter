@@ -3,7 +3,7 @@
 // formatting indents and that block warnings check.
 
 import { analyzeBlocks } from "./formatter";
-import { codeOnly, INITIAL_STATE, LineState, tokenizeLine } from "./tokenizer";
+import { ScannedLine, scanLines } from "./tokenizer";
 
 export interface FoldRange {
     start: number;
@@ -28,29 +28,9 @@ export interface OutlineSymbol {
     children: OutlineSymbol[];
 }
 
-interface LineInfo {
-    raw: string;
-    /** Code with strings blanked to "" and the comment removed; "" for blank/comment lines */
-    code: string;
-    commentOnly: boolean;
-    inString: boolean;
-}
-
-function lineInfos(text: string): LineInfo[] {
-    let state: LineState = INITIAL_STATE;
-    return text.split(/\r?\n/).map((raw) => {
-        const inString = state.openString !== null;
-        const tokenized = tokenizeLine(inString ? raw : raw.trimStart(), state);
-        state = tokenized.endState;
-        const code = inString ? "" : codeOnly(tokenized.tokens).trim();
-        const commentOnly = !inString && code === "" && tokenized.tokens.some((t) => t.kind === "comment");
-        return { raw, code, commentOnly, inString };
-    });
-}
-
 /** Folding: blocks (split at Else/Case/Catch), #Region, comment runs and Imports runs. */
 export function foldingRanges(text: string): FoldRange[] {
-    const lines = lineInfos(text);
+    const lines = scanLines(text);
     const ranges: FoldRange[] = [];
 
     // Blocks keep their closing line visible, like indentation-based folding:
@@ -76,7 +56,7 @@ export function foldingRanges(text: string): FoldRange[] {
     });
 
     // Runs of 2+ comment-only lines, and of 2+ Imports lines
-    const runs = (test: (l: LineInfo) => boolean, kind: FoldRange["kind"]) => {
+    const runs = (test: (l: ScannedLine) => boolean, kind: FoldRange["kind"]) => {
         let start = -1;
         lines.forEach((l, i) => {
             if (test(l)) {
@@ -106,25 +86,25 @@ const DECLARATION = new RegExp(
 const CONTAINERS = new Set(["class", "module", "struct", "interface"]);
 
 /** Column of the declared name: the word right after the keyword, not an earlier match ("F" in "Function F"). */
-function nameColumn(raw: string, keyword: string, name: string): number {
+function nameColumn(line: ScannedLine, keyword: string, name: string): number {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Blank out string and comment contents (same length, so columns stay put)
-    const masked = tokenizeLine(raw).tokens
-        .map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length)))
-        .join("");
-    const m = new RegExp("\\b" + keyword + "\\s+(" + escaped + ")", "i").exec(masked);
-    return m ? m.index + m[0].length - m[1].length : Math.max(0, raw.indexOf(name));
+    // `masked` blanks string and comment contents at the same length, so columns stay put
+    const m = new RegExp("\\b" + keyword + "\\s+(" + escaped + ")", "i").exec(line.masked);
+    return m ? m.index + m[0].length - m[1].length : Math.max(0, line.raw.indexOf(name));
 }
 
 /** Outline: declarations nested by containment (Class > Sub, Namespace > Class, ...). */
 export function outline(text: string): OutlineSymbol[] {
-    const lines = lineInfos(text);
+    const lines = scanLines(text);
     const spans = analyzeBlocks(text).spans;
     const flat: OutlineSymbol[] = [];
 
     lines.forEach((l, i) => {
-        if (l.code === "" || l.inString) return;
-        const m = DECLARATION.exec(l.code);
+        // On a line that starts inside a string, `code` is what follows the
+        // closing quote: the declaration, if any, comes after the ":" there
+        const code = l.startsInString ? l.code.replace(/^(?::\s*)+/, "") : l.code;
+        if (code === "") return;
+        const m = DECLARATION.exec(code);
         if (!m) return;
         const word = m[1].toLowerCase().split(/\s+/);
         const keyword = word[word.length - 1]; // "delegate sub" -> "sub"
@@ -143,7 +123,7 @@ export function outline(text: string): OutlineSymbol[] {
             start: i,
             end: span ? span.end : i,
             nameLine: i,
-            nameStart: nameColumn(l.raw, keyword, name),
+            nameStart: nameColumn(l, keyword, name),
             children: [],
         });
     });

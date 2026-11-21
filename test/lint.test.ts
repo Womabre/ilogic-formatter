@@ -33,6 +33,16 @@ describe("lint", () => {
         expect(hits(S + "Try : y() : Catch : n = 0 : End Try\n")).toEqual([]);
     });
 
+    test("the empty-Catch hint points at the Catch, not at a \"catch\" in a string before it", () => {
+        expect(hits(S + 'Try : s = "catch" : Catch : End Try\n')).toEqual(["2:20-25 empty-catch"]);
+    });
+
+    test("code after the end of a multi-line string is checked like any other code", () => {
+        expect(hits(S + 'Sub Main()\nDim s = "abc\ndef" : MsgBox("x")\nEnd Sub\n')).toEqual(["4:7-13 msgbox"]);
+        // The string continued from the line above is not a new $"..." string
+        expect(hits(S + 'Dim s = "abc\n$def"\n')).toEqual([]);
+    });
+
     test("allowCommentedCatch accepts a Catch that explains itself, and nothing else", () => {
         const allow = (text: string) => lint(S + text, [], { allowCommentedCatch: true }).map((p) => p.rule);
         expect(allow("Try\nx()\nCatch\n' the property may not exist\nEnd Try\n")).toEqual([]);

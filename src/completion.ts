@@ -2,7 +2,7 @@
 // Pure functions over a line of text, so they can be tested without VS Code.
 
 import { ApiMember, ApiObject, findObject, ILOGIC_OBJECTS, REFERENCE_BASE } from "./ilogicApi";
-import { tokenizeLine } from "./tokenizer";
+import { maskedCode, tokenizeLine } from "./tokenizer";
 
 export type Suggestions =
     | { kind: "members"; object: ApiObject; members: ApiMember[] }
@@ -114,7 +114,7 @@ export function signatureAt(linePrefix: string): SignatureInfo | null {
     const tokens = tokenizeLine(linePrefix).tokens;
     if (tokens[tokens.length - 1]?.kind === "comment") return null;
     // Strings blanked at the same length: their commas and parentheses are not code
-    const code = tokens.map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length))).join("");
+    const code = maskedCode(tokens);
 
     let depth = 0;
     let commas = 0;

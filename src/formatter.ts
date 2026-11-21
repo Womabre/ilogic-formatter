@@ -1,5 +1,5 @@
 import { LEGACY_SPELLINGS, VB_KEYWORDS } from "./keywords";
-import { codeOnly, INITIAL_STATE, isDoubleQuote, isSingleQuote, LineState, Token, tokenizeLine } from "./tokenizer";
+import { codeOnly, INITIAL_STATE, isDoubleQuote, isSingleQuote, LineState, ScannedLine, scanLines, Token, tokenizeLine } from "./tokenizer";
 
 export interface FormatOptions {
     indentSize?: number;
@@ -110,7 +110,7 @@ function closingBlockCount(statement: string): number {
 }
 
 export function format(text: string, options: FormatOptions = {}): string {
-    const result = formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }).flat();
+    const result = formatLines(text, { ...DEFAULT_OPTIONS, ...options }).flat();
     while (result.length > 0 && result[result.length - 1] === "") {
         result.pop();
     }
@@ -130,7 +130,7 @@ export function formatRange(text: string, startLine: number, endLine: number, op
     const last = lines.length - 1;
     const start = Math.max(0, Math.min(startLine, last));
     const end = Math.max(start, Math.min(endLine, last));
-    const result = formatLines(lines, { ...DEFAULT_OPTIONS, ...options }).slice(start, end + 1).flat();
+    const result = formatLines(text, { ...DEFAULT_OPTIONS, ...options }).slice(start, end + 1).flat();
     if (end === last) {
         while (result.length > 0 && result[result.length - 1] === "") {
             result.pop();
@@ -138,16 +138,6 @@ export function formatRange(text: string, startLine: number, endLine: number, op
         result.push("");
     }
     return result.join("\n");
-}
-
-/** True when line `line` (0-based) begins inside a multi-line string literal. */
-export function startsInString(text: string, line: number): boolean {
-    const lines = text.split(/\r?\n/);
-    let state: LineState = INITIAL_STATE;
-    for (let i = 0; i < line && i < lines.length; i++) {
-        state = tokenizeLine(state.openString ? lines[i] : lines[i].trimStart(), state).endState;
-    }
-    return state.openString !== null;
 }
 
 /** A block structure problem: a closer without an opener, or a block that never closes. */
@@ -159,16 +149,6 @@ export interface BlockProblem {
     relatedLine?: number;
 }
 
-/**
- * Finds unbalanced blocks: End If without If, End Sub while an If is still
- * open, Else outside an If, Case outside a Select Case, blocks never closed.
- * Uses the same classification as the formatter, so it sees the code the
- * same way formatting does.
- */
-export function checkBlocks(text: string, options: FormatOptions = {}): readonly BlockProblem[] {
-    return analyzeBlocks(text, options).problems;
-}
-
 /** A matched block: opener line, closer line, and the Else/Case/Catch lines in between. */
 export interface BlockSpan {
     /** lowercase keyword of the opener: "sub", "if", "select", "lambda_sub", "#if", ... */
@@ -178,15 +158,21 @@ export interface BlockSpan {
     readonly middles: readonly number[];
 }
 
-/** Block problems and the matched blocks (for folding and the outline). */
-export function analyzeBlocks(text: string, options: FormatOptions = {}): BlockAnalysis {
+/**
+ * The blocks of a rule and the problems with them: End If without If, End Sub
+ * while an If is still open, Else outside an If, Case outside a Select Case,
+ * blocks never closed. Uses the formatter's classification, so it sees the
+ * code the way formatting does, on the text as written: lookalikes are not
+ * normalized first, so the blocks are the ones the compiler sees and every
+ * caller gets the same answer whatever its formatting options.
+ */
+export function analyzeBlocks(text: string): BlockAnalysis {
     // Folding, the outline, block warnings and the convention hints all ask
     // for the same document after every edit: analyse it once.
-    const key = JSON.stringify({ ...DEFAULT_OPTIONS, ...options });
-    const cached = analysisCache.find((entry) => entry.key === key && entry.text === text);
+    const cached = analysisCache.find((entry) => entry.text === text);
     if (cached) return cached.analysis;
-    const analysis = runBlockAnalysis(text, options);
-    analysisCache.unshift({ key, text, analysis });
+    const analysis = runBlockAnalysis(text);
+    analysisCache.unshift({ text, analysis });
     analysisCache.length = Math.min(analysisCache.length, ANALYSIS_CACHE_SIZE);
     return analysis;
 }
@@ -197,15 +183,14 @@ export interface BlockAnalysis {
     readonly spans: readonly BlockSpan[];
 }
 
-// The last few analyses (a document is asked about with the user's options
-// and with the defaults, and two editors can be open side by side)
+// The last few analyses (several editors can be open side by side)
 const ANALYSIS_CACHE_SIZE = 4;
-const analysisCache: { key: string; text: string; analysis: BlockAnalysis }[] = [];
+const analysisCache: { text: string; analysis: BlockAnalysis }[] = [];
 
-function runBlockAnalysis(text: string, options: FormatOptions): BlockAnalysis {
+function runBlockAnalysis(text: string): BlockAnalysis {
     const code = new BlockChecker();
     const directives = new BlockChecker();
-    formatLines(text.split(/\r?\n/), { ...DEFAULT_OPTIONS, ...options }, { code, directives, branchStarts: [] });
+    formatLines(text, { ...DEFAULT_OPTIONS, normalizeUnicode: false }, { code, directives, branchStarts: [] });
     const problems = [...code.finish(), ...directives.finish()].sort((a, b) => a.line - b.line);
     const spans = [...code.spans, ...directives.spans].sort((a, b) => a.start - b.start);
     return { problems, spans };
@@ -314,12 +299,21 @@ interface Checkers {
     branchStarts: { keyword: string; line: number; middles: number[] }[][];
 }
 
-/** Runs the formatter over every line; entry i holds the output lines for input line i (0, 1 or 2). */
-function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: Checkers): string[][] {
+/**
+ * Runs the formatter over every line; entry i holds the output lines for input line i (0, 1 or 2).
+ *
+ * The lookaheads read the scanned lines (the text as written). The main loop
+ * carries its own string state instead: with normalizeUnicode it formats the
+ * normalized line, and a normalized lookalike can open or close a string, so
+ * its view of where strings run can differ from the text as written.
+ */
+function formatLines(text: string, opts: Required<FormatOptions>, checkers?: Checkers): string[][] {
+    const scanned = scanLines(text);
+    const lines = scanned.map((l) => l.raw);
     const out: string[][] = lines.map(() => []);
     // Classification text per line, computed once (used by lookaheads)
     const textCache: (string | undefined)[] = [];
-    const lineText = (j: number) => (textCache[j] ??= classificationText(tokenizeLine(lines[j].trim()).tokens));
+    const lineText = (j: number) => (textCache[j] ??= scanned[j].code === "" ? "" : classificationText(ownTokens(scanned[j])));
     // nextCode[j]: the first line at or after j that has code (lines.length when none),
     // filled back to front so a long run of comment lines is not rescanned per line
     const nextCode: number[] = new Array(lines.length + 1).fill(lines.length);
@@ -355,27 +349,32 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
 
         // ── Continuation of a multi-line string: emit verbatim ──────────────────
         // Trimming, re-indenting or dropping blank lines here would change the
-        // string's value. Only the code after the closing quote is tracked.
-        if (state.openString) {
+        // string's value. A line that closes the string and has code after it
+        // ("def" : Sub Foo()) is still emitted verbatim, but that code is
+        // classified below like any other statement, so its blocks open and close.
+        const verbatim = state.openString !== null;
+        if (verbatim) {
             const tokenized = tokenizeLine(rawLine, state);
-            state = tokenized.endState;
-            out[i].push(rawLine);
-            consecutiveBlanks = 0;
-            parenDepth = Math.max(0, parenDepth + countNetParens(tokenized.tokens));
-            if (!state.openString) {
-                const tail = codeOnly(tokenized.tokens).trim().toLowerCase();
-                continuesStatement = endsWithContinuation(tail);
-                afterAttribute = endsAttribute(tail);
+            if (tokenized.endState.openString || codeOnly(tokenized.tokens.slice(1)).trim() === "") {
+                state = tokenized.endState;
+                out[i].push(rawLine);
+                consecutiveBlanks = 0;
+                parenDepth = Math.max(0, parenDepth + countNetParens(tokenized.tokens));
+                if (!state.openString) {
+                    const tail = codeOnly(tokenized.tokens).trim().toLowerCase();
+                    continuesStatement = endsWithContinuation(tail);
+                    afterAttribute = endsAttribute(tail);
+                }
+                continue;
             }
-            continue;
         }
 
         // ── Tokenize (and normalize lookalikes in code only) ─────────────────────
         // A line that ends inside a string keeps its trailing whitespace: it is
         // part of the string value.
         const lineStart = state;
-        let tokenized = tokenizeLine(rawLine.trimStart(), lineStart);
-        if (opts.normalizeUnicode) {
+        let tokenized = tokenizeLine(verbatim ? rawLine : rawLine.trimStart(), lineStart);
+        if (opts.normalizeUnicode && !verbatim) {
             // Re-tokenize: a normalized lookalike (e.g. ″ → ") can open a string.
             const normalizedLine = normalizeLineUnicode(tokenized.tokens).map((t) => t.text).join("");
             tokenized = tokenizeLine(normalizedLine, lineStart);
@@ -403,7 +402,8 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
             formattedComment = normalizeComment(formattedComment);
         }
 
-        const codeTokens = tokens.filter((t) => t.kind !== "comment");
+        // A verbatim line's leading token is the string continued from above: not its code
+        const codeTokens = (verbatim ? tokens.slice(1) : tokens).filter((t) => t.kind !== "comment");
         const casedTokens = opts.normalizeKeywords ? codeTokens.map(applyKeywordCasing) : codeTokens;
         let formattedCode = casedTokens.map((t) => t.text).join("");
         formattedCode = endsInString ? formattedCode : formattedCode.trimEnd();
@@ -412,6 +412,10 @@ function formatLines(lines: string[], opts: Required<FormatOptions>, checkers?: 
         const norm = classificationText(casedTokens);
 
         const emitLine = (level: number) => {
+            if (verbatim) {
+                out[i].push(rawLine);
+                return;
+            }
             const indent = indentChar.repeat(Math.max(0, level));
             const codePart = formattedCode.trimStart();
             if (codePart === "" && formattedComment !== null) out[i].push(indent + formattedComment);
@@ -816,9 +820,14 @@ const LEGACY_WORDS = new RegExp("\\b(?:" + Object.keys(LEGACY_SPELLINGS).join("|
  * "Wend") spelled out, so blocks pair the same way whether or not keyword
  * casing has rewritten them.
  */
-function classificationText(tokens: Token[]): string {
+function classificationText(tokens: readonly Token[]): string {
     return codeOnly(tokens).replace(/\[[^\]]*\]/g, "name").trim().toLowerCase()
         .replace(LEGACY_WORDS, (word) => (word === "wend" ? "end while" : LEGACY_SPELLINGS[word].toLowerCase()));
+}
+
+/** A line's own tokens: without the string continued from the line above. */
+function ownTokens(line: ScannedLine): readonly Token[] {
+    return line.startsInString ? line.tokens.slice(1) : line.tokens;
 }
 
 /**

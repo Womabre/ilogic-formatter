@@ -58,6 +58,12 @@ describe("outline", () => {
         expect(x.nameStart).toBe("    <Obsolete(\"Sub X\")> Public Sub ".length);
     });
 
+    test("a declaration after the end of a multi-line string is in the outline", () => {
+        const symbols = outline('Dim s = "abc\ndef" : Sub Foo()\nEnd Sub\n');
+        expect(tree(symbols)).toEqual(["function Foo 2-3"]);
+        expect(symbols[0].nameStart).toBe('def" : Sub '.length);
+    });
+
     test("statements that merely mention a keyword are not declarations", () => {
         expect(outline("Exit Sub\nEnd Function\nDim f = Function(x) x\nCall Sub1()\n")).toEqual([]);
     });

@@ -1,12 +1,13 @@
 import * as vscode from "vscode";
 import { dirname } from "path";
 import { CONFIG_FILE, ConfigError, configFor, FileConfig, formatOptionsOf } from "./config";
-import { BlockProblem, checkBlocks, format, FormatOptions, formatRange, startsInString } from "./formatter";
+import { analyzeBlocks, BlockProblem, format, FormatOptions, formatRange } from "./formatter";
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
 import { hoverAt, memberInsertion, memberMarkdown, objectMarkdown, signatureAt, suggestionsFor } from "./completion";
 import { lint, LintRule } from "./lint";
 import { optionStrictEdits } from "./quickFixes";
 import { minimalLineEdit } from "./edits";
+import { scanLines } from "./tokenizer";
 
 const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
     class: vscode.SymbolKind.Class,
@@ -134,17 +135,19 @@ export function activate(context: vscode.ExtensionContext) {
             const opts = getOptions(document, options);
             const text = document.getText().replace(/\r\n/g, "\n");
             const lines = text.split("\n");
+            const scanned = scanLines(text);
+            const inString = (n: number) => scanned[n]?.startsInString ?? false;
             const edits: vscode.TextEdit[] = [];
 
             const prev = line - 1;
-            if (lines[prev].trim() !== "" && !startsInString(text, prev)) {
+            if (lines[prev].trim() !== "" && !inString(prev)) {
                 const formatted = formatRange(text, prev, prev, opts).split("\n")[0];
                 if (formatted.trim() !== "" && formatted !== lines[prev]) {
                     edits.push(vscode.TextEdit.replace(document.lineAt(prev).range, formatted));
                 }
             }
 
-            if (!startsInString(text, line)) {
+            if (!inString(line)) {
                 // Probe with a placeholder statement when the new line is empty
                 const current = lines[line] ?? "";
                 const probeLines = [...lines];
@@ -386,7 +389,7 @@ export function activate(context: vscode.ExtensionContext) {
             diagnostics.delete(document.uri);
             return;
         }
-        const problems = checkBlocks(document.getText(), getOptions(document));
+        const problems = analyzeBlocks(document.getText()).problems;
         diagnostics.set(document.uri, problems.map((p) => toDiagnostic(document, p)));
     }
 

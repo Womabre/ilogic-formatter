@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { checkBlocks, format } from "../src/formatter";
+import { analyzeBlocks, format } from "../src/formatter";
 
 const snippets: Record<string, { body: string[] }> = JSON.parse(
     readFileSync(join(import.meta.dir, "..", "snippets", "ilogicvb.code-snippets"), "utf8"));
@@ -25,7 +25,7 @@ for (const [name, snippet] of Object.entries(snippets)) {
         // the cursor line ($0) is left indented on purpose; compare ignoring whitespace-only lines
         const blankWs = (t: string) => t.replace(/^[ \t]+$/gm, "");
         expect(format(doc)).toBe(blankWs(doc));
-        expect(checkBlocks(doc)).toEqual([]);
+        expect(analyzeBlocks(doc).problems).toEqual([]);
         expect(text).not.toMatch(/\$"|MsgBox\(/); // conventions: no interpolation, no MsgBox
     });
 }

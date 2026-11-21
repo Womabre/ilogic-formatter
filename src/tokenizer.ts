@@ -139,9 +139,74 @@ export function tokenizeLine(line: string, state: LineState = INITIAL_STATE): To
 }
 
 /** The line's code with every string literal replaced by `""` and comments dropped. */
-export function codeOnly(tokens: Token[]): string {
+export function codeOnly(tokens: readonly Token[]): string {
     return tokens
         .filter((t) => t.kind !== "comment")
         .map((t) => (t.kind === "string" ? '""' : t.text))
         .join("");
+}
+
+/**
+ * The line with string and comment text replaced by spaces of the same width,
+ * so a column in the result is a column in the line, and words inside strings
+ * and comments never match.
+ */
+export function maskedCode(tokens: readonly Token[]): string {
+    return tokens.map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length))).join("");
+}
+
+/** One physical line of a rule, seen with the string state carried from the lines above it. */
+export interface ScannedLine {
+    readonly raw: string;
+    /** The tokens of `raw` as written (not trimmed), so token columns are editor columns. */
+    readonly tokens: readonly Token[];
+    /** The line begins inside a string literal opened on an earlier line. */
+    readonly startsInString: boolean;
+    /**
+     * Code with strings blanked to `""` and the comment dropped, trimmed, case kept.
+     * On a line that starts inside a string, only the code after the closing
+     * quote ("" while the string stays open).
+     */
+    readonly code: string;
+    /** `raw` with string and comment text replaced by spaces (see maskedCode). */
+    readonly masked: string;
+    readonly hasComment: boolean;
+    /** A comment and nothing else: no code, and not the end of a multi-line string. */
+    readonly commentOnly: boolean;
+}
+
+// The last few scans: folding, the outline, the hints and on-type formatting
+// all ask about the same text right after an edit
+const SCAN_CACHE_SIZE = 4;
+const scanCache: { text: string; lines: readonly ScannedLine[] }[] = [];
+
+/**
+ * Every line of a rule, scanned once with the multi-line string state carried
+ * from line to line. The result is shared between callers: read it, never
+ * change it.
+ */
+export function scanLines(text: string): readonly ScannedLine[] {
+    const cached = scanCache.find((entry) => entry.text === text);
+    if (cached) return cached.lines;
+    let state: LineState = INITIAL_STATE;
+    const lines = text.split(/\r?\n/).map((raw): ScannedLine => {
+        const { tokens, startsInString, endState } = tokenizeLine(raw, state);
+        state = endState;
+        // The string continued from the line above is not code of this line
+        const own = startsInString ? tokens.slice(1) : tokens;
+        const code = codeOnly(own).trim();
+        const hasComment = tokens.some((t) => t.kind === "comment");
+        return {
+            raw,
+            tokens,
+            startsInString,
+            code,
+            masked: maskedCode(tokens),
+            hasComment,
+            commentOnly: hasComment && code === "" && !startsInString,
+        };
+    });
+    scanCache.unshift({ text, lines });
+    scanCache.length = Math.min(scanCache.length, SCAN_CACHE_SIZE);
+    return lines;
 }

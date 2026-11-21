@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // ilogic-format: the iLogic Formatter outside VS Code (CI, pre-commit hooks,
-// bulk formatting). Wraps the same format/checkBlocks/lint the extension uses.
+// bulk formatting). Wraps the same format/analyzeBlocks/lint the extension uses.
 // Run with: bun src/cli.ts ...   or   node out/cli.js ...
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
 import { dirname, resolve } from "path";
 import { CONFIG_FILE, ConfigError, configFor, FileConfig, formatOptionsOf, readConfigFile } from "./config";
-import { checkBlocks, format, FormatOptions } from "./formatter";
+import { analyzeBlocks, format, FormatOptions } from "./formatter";
 import { lint, LINT_RULES, LintRule } from "./lint";
 
 const HELP = `ilogic-format [options] <file | directory>...
@@ -204,8 +204,7 @@ function vbIsILogic(path: string, args: Args): boolean {
 
 function findings(raw: string, path: string, settings: FileConfig): Finding[] {
     const text = raw.replace(/^﻿/, "");
-    const options = formatOptionsOf(settings);
-    const blocks: Finding[] = checkBlocks(text, options).map((p) => ({ line: p.line + 1, severity: "warning", rule: "blocks", message: p.message }));
+    const blocks: Finding[] = analyzeBlocks(text).problems.map((p) => ({ line: p.line + 1, severity: "warning", rule: "blocks", message: p.message }));
     const isRule = /\.ilogicvb$/i.test(path) || path === "<stdin>" || (/\.vb$/i.test(path) && settings.vbFilesAreILogic !== false);
     const hints: Finding[] = isRule
         ? lint(text, settings.disabledHints, settings).map((p) => ({ line: p.line + 1, severity: p.severity, rule: p.rule, message: p.message }))

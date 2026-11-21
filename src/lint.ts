@@ -4,7 +4,7 @@
 // If(ThisApplication, ThisServer) and short BCL names that Inventor also uses.
 
 import { analyzeBlocks, splitStatements } from "./formatter";
-import { codeOnly, INITIAL_STATE, LineState, Token, tokenizeLine } from "./tokenizer";
+import { ScannedLine, scanLines } from "./tokenizer";
 
 export const LINT_RULES = ["interpolation", "empty-catch", "msgbox", "option-strict", "thisserver-fallback", "ambiguous-name"] as const;
 export type LintRule = (typeof LINT_RULES)[number];
@@ -23,23 +23,13 @@ export interface LintProblem {
     message: string;
 }
 
-interface Line {
-    raw: string;
-    tokens: Token[];
-    /** code with strings blanked to "" and no comment, lowercase, trimmed */
-    code: string;
-    inString: boolean;
-    hasComment: boolean;
+/** A scanned line plus its code in lowercase, which every check here matches against. */
+interface Line extends ScannedLine {
+    readonly lower: string;
 }
 
 function lines(text: string): Line[] {
-    let state: LineState = INITIAL_STATE;
-    return text.split(/\r?\n/).map((raw) => {
-        const inString = state.openString !== null;
-        const tokenized = tokenizeLine(raw, state);
-        state = tokenized.endState;
-        return { raw, tokens: tokenized.tokens, code: inString ? "" : codeOnly(tokenized.tokens).trim().toLowerCase(), inString, hasComment: tokenized.tokens.some((t) => t.kind === "comment") };
-    });
+    return scanLines(text).map((l) => ({ ...l, lower: l.code.toLowerCase() }));
 }
 
 export function lint(text: string, disabled: readonly LintRule[] = [], options: LintOptions = {}): LintProblem[] {
@@ -49,10 +39,11 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
 
     all.forEach((l, i) => {
         // $"..." strings
-        if (on("interpolation") && !l.inString) {
+        if (on("interpolation")) {
             let column = 0;
-            for (const token of l.tokens) {
-                if (token.kind === "string" && token.text.startsWith("$")) {
+            for (const [k, token] of l.tokens.entries()) {
+                // The string continued from the line above was reported where it opened
+                if (token.kind === "string" && token.text.startsWith("$") && !(k === 0 && l.startsInString)) {
                     problems.push({
                         rule: "interpolation", severity: "warning", line: i, start: column, end: column + token.text.length,
                         message: "iLogic does not support string interpolation ($\"...\"); join with & instead.",
@@ -61,9 +52,9 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
                 column += token.text.length;
             }
         }
-        if (!l.inString && (on("thisserver-fallback") || on("ambiguous-name"))) {
-            // Strings and the comment blanked out at the same length, so columns stay put
-            const masked = l.tokens.map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length))).join("");
+        // `masked` has strings and the comment blanked at the same length, so columns stay put
+        const masked = l.masked;
+        if (on("thisserver-fallback") || on("ambiguous-name")) {
             if (on("thisserver-fallback")) {
                 for (const span of ifCalls(masked)) {
                     const inside = masked.slice(span.start, span.end).toLowerCase();
@@ -90,9 +81,7 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
         }
         // MsgBox / MessageBox.Show as a statement: a notification, not a decision.
         // A statement starts the line, or follows ":", Then or Else.
-        if (on("msgbox") && !l.inString) {
-            // Strings and the comment blanked out at the same length, so columns stay put
-            const masked = l.tokens.map((t) => (t.kind === "code" ? t.text : " ".repeat(t.text.length))).join("");
+        if (on("msgbox")) {
             const call = /(?:^|:|\b(?:then|else)\s)\s*(?:call\s+)?(msgbox|messagebox\.show)\s*\(/gi;
             let m: RegExpExecArray | null;
             while ((m = call.exec(masked)) !== null) {
@@ -111,11 +100,12 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
             const bounds = [...span.middles, span.end];
             for (let k = 0; k < span.middles.length; k++) {
                 const catchLine = span.middles[k];
-                if (!/^catch\b/.test(statementStarting(all[catchLine].code, "catch"))) continue;
+                if (!/^catch\b/.test(statementStarting(all[catchLine].lower, "catch"))) continue;
                 const next = bounds[k + 1];
                 if (!catchIsEmpty(all, catchLine, next)) continue;
                 if (options.allowCommentedCatch && all.slice(catchLine, Math.max(next, catchLine + 1)).some((l) => l.hasComment)) continue;
-                const start = all[catchLine].raw.toLowerCase().indexOf("catch");
+                // In the masked line, so a "catch" inside a string or comment is never taken
+                const start = all[catchLine].masked.search(/\bcatch\b/i);
                 problems.push({
                     rule: "empty-catch", severity: "warning", line: catchLine, start, end: start + 5,
                     message: "This Catch discards the exception. Log it, e.g. Logger.Error(\"...: \" & ex.Message).",
@@ -125,7 +115,7 @@ export function lint(text: string, disabled: readonly LintRule[] = [], options: 
     }
 
     // Option Strict On
-    if (on("option-strict") && all.some((l) => l.code !== "") && !all.some((l) => /^option\s+strict\s+on\b/.test(l.code))) {
+    if (on("option-strict") && all.some((l) => l.code !== "") && !all.some((l) => /^option\s+strict\s+on\b/.test(l.lower))) {
         problems.push({
             rule: "option-strict", severity: "information", line: 0, start: 0, end: all[0].raw.length,
             message: "Option Strict On is not set; it catches type mistakes at compile time.",
@@ -163,13 +153,13 @@ function statementStarting(code: string, word: string): string {
 /** Nothing runs between this Catch and the next Catch/Finally/End Try. */
 function catchIsEmpty(all: Line[], catchLine: number, nextBound: number): boolean {
     // Statements after the Catch on its own line ("Catch : x = 0 : End Try")
-    const statements = splitStatements(all[catchLine].code);
+    const statements = splitStatements(all[catchLine].lower);
     const after = statements.slice(statements.findIndex((s) => s.startsWith("catch")) + 1);
     const ownLine = after.filter((s) => !/^(catch|finally|end\s+try)\b/.test(s));
     if (ownLine.length > 0) return false;
     if (nextBound === catchLine) return true;
-    for (let j = catchLine + 1; j < nextBound; j++) if (all[j].code !== "") return false;
+    for (let j = catchLine + 1; j < nextBound; j++) if (all[j].lower !== "") return false;
     // The closing line itself may start with statements ("x = 1 : End Try" is rare but valid)
-    const closing = splitStatements(all[nextBound].code);
+    const closing = splitStatements(all[nextBound].lower);
     return closing.length <= 1 || /^(catch|finally|end\s+try)\b/.test(closing[0]);
 }

@@ -7,6 +7,7 @@ import { join } from "path";
 import { analyzeBlocks, format, FormatOptions, formatRange } from "../src/formatter";
 import { lint } from "../src/lint";
 import { foldingRanges, outline } from "../src/structure";
+import { INITIAL_STATE, LineState, scanLines, tokenizeLine } from "../src/tokenizer";
 
 /** Small seeded generator (mulberry32). */
 function random(seed: number): () => number {
@@ -62,6 +63,21 @@ describe("for any rule", () => {
 
     test("formatting the whole text as a range equals formatting the document", () => {
         expect(failing((text) => formatRange(text, 0, text.split("\n").length - 1) === format(text))).toEqual([]);
+    });
+
+    test("scanned lines: one per line, masked as wide as the line, string state carried from the line above", () => {
+        expect(failing((text) => {
+            const raws = text.split(/\r?\n/);
+            const scanned = scanLines(text);
+            let state: LineState = INITIAL_STATE;
+            return scanned.length === raws.length && scanned.every((l, i) => {
+                const startsInString = state.openString !== null;
+                state = tokenizeLine(raws[i], state).endState;
+                return l.raw === raws[i] && l.masked.length === l.raw.length && l.startsInString === startsInString &&
+                    // A line that is all string continued from above has no code of its own
+                    (!startsInString || l.tokens.length > 1 || l.code === "");
+            });
+        })).toEqual([]);
     });
 
     test("block analysis, folding, the outline and the hints never throw, and stay inside the text", () => {

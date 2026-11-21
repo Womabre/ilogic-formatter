@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { analyzeBlocks, checkBlocks, format } from "../src/formatter";
+import { analyzeBlocks, format } from "../src/formatter";
 
-const messages = (text: string) => checkBlocks(text).map((p) => `${p.line + 1}: ${p.message}`);
+const messages = (text: string) => analyzeBlocks(text).problems.map((p) => `${p.line + 1}: ${p.message}`);
 
-describe("checkBlocks", () => {
+describe("analyzeBlocks problems", () => {
     test("balanced code has no problems", () => {
         expect(messages("Sub A()\nIf x Then\ny()\nElse\nz()\nEnd If\nEnd Sub\n")).toEqual([]);
         expect(messages("Select Case x\nCase 1\nIf a Then b()\nCase Else\nc()\nEnd Select\n")).toEqual([]);
@@ -82,30 +82,43 @@ describe("checkBlocks", () => {
         expect(messages("For i = 1 To 3\nNext i, j\n")).toEqual(["2: Next has no matching For"]);
     });
 
+    test("code after the end of a multi-line string opens and closes blocks", () => {
+        const text = 'Dim s = "abc\ndef" : Sub Foo()\nEnd Sub\n';
+        expect(analyzeBlocks(text).problems).toEqual([]);
+        expect(analyzeBlocks(text).spans).toEqual([{ keyword: "sub", start: 1, end: 2, middles: [] }]);
+        // The line itself is left exactly as written: its start is string content
+        expect(format(text).split("\n")[1]).toBe('def" : Sub Foo()');
+    });
+
+    test("block analysis reads the text as written, whatever the formatting options", () => {
+        // „ is not a VB string delimiter, so as written there is no string here and the If is open
+        expect(messages("If a = „x Then\nEnd If\n")).toEqual([]);
+    });
+
     test("labels do not disturb block pairing", () => {
-        expect(checkBlocks("Sub Main()\nretry:\nIf a Then GoTo retry\n10:\nEnd Sub\n")).toEqual([]);
+        expect(analyzeBlocks("Sub Main()\nretry:\nIf a Then GoTo retry\n10:\nEnd Sub\n").problems).toEqual([]);
     });
 
     test("a multi-line LINQ query is one statement, not a Select Case", () => {
-        expect(checkBlocks("Dim q = From x In list\nWhere x > 1\nSelect x\ny = 1\n")).toEqual([]);
+        expect(analyzeBlocks("Dim q = From x In list\nWhere x > 1\nSelect x\ny = 1\n").problems).toEqual([]);
     });
 
     test("one-word closers pair up whether or not keywords are recased", () => {
         const text = "If a Then\nWhile b\nWend\nEndIf\n";
-        expect(checkBlocks(text)).toEqual([]);
-        expect(checkBlocks(text, { normalizeKeywords: false })).toEqual([]);
+        expect(analyzeBlocks(text).problems).toEqual([]);
+        expect(analyzeBlocks(format(text)).problems).toEqual([]);
     });
 
     test("Operator and Custom Event blocks", () => {
-        expect(checkBlocks("Class V\nShared Operator +(a As V, b As V) As V\nReturn a\nEnd Operator\nCustom Event E As EventHandler\nAddHandler(value As EventHandler)\nEnd AddHandler\nRemoveHandler(value As EventHandler)\nEnd RemoveHandler\nRaiseEvent(s As Object, e As EventArgs)\nEnd RaiseEvent\nEnd Event\nEnd Class\n")).toEqual([]);
-        expect(checkBlocks("Class V\nShared Operator +(a As V, b As V) As V\nEnd Class\n").map((p) => p.message)).toEqual(["Operator is not closed before the End Class on line 3"]);
+        expect(analyzeBlocks("Class V\nShared Operator +(a As V, b As V) As V\nReturn a\nEnd Operator\nCustom Event E As EventHandler\nAddHandler(value As EventHandler)\nEnd AddHandler\nRemoveHandler(value As EventHandler)\nEnd RemoveHandler\nRaiseEvent(s As Object, e As EventArgs)\nEnd RaiseEvent\nEnd Event\nEnd Class\n").problems).toEqual([]);
+        expect(analyzeBlocks("Class V\nShared Operator +(a As V, b As V) As V\nEnd Class\n").problems.map((p) => p.message)).toEqual(["Operator is not closed before the End Class on line 3"]);
     });
 
     test("every fixture's formatted output is free of block problems", () => {
         const root = join(import.meta.dir, "fixtures");
         const dirty = readdirSync(root)
             .filter((name) => !existsSync(join(root, name, "todo.md")))
-            .filter((name) => checkBlocks(readFileSync(join(root, name, "expected.iLogicVb"), "utf8")).length > 0);
+            .filter((name) => analyzeBlocks(readFileSync(join(root, name, "expected.iLogicVb"), "utf8")).problems.length > 0);
         expect(dirty).toEqual([]);
     });
 });

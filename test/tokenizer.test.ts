@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { codeOnly, tokenizeLine } from "../src/tokenizer";
+import { codeOnly, maskedCode, scanLines, tokenizeLine } from "../src/tokenizer";
 
 const kinds = (line: string) => tokenizeLine(line).tokens.map((t) => [t.kind, t.text]);
 
@@ -64,11 +64,33 @@ describe("tokenizeLine", () => {
     });
 });
 
-import { startsInString } from "../src/formatter";
-
-describe("startsInString", () => {
+describe("scanLines", () => {
     test("knows which lines continue a multi-line string", () => {
         const text = 'Dim s = "abc\n   def\nghi"\nx = 1\n';
-        expect([0, 1, 2, 3].map((line) => startsInString(text, line))).toEqual([false, true, true, false]);
+        expect(scanLines(text).map((l) => l.startsInString)).toEqual([false, true, true, false, false]);
+    });
+
+    test("code is the code after the closing quote on a line that ends a multi-line string", () => {
+        const lines = scanLines('Dim s = "abc\ndef" : MsgBox("x") \' done\nx = 1');
+        expect(lines.map((l) => l.code)).toEqual(['Dim s = ""', ': MsgBox("")', "x = 1"]);
+        expect(lines[1].hasComment).toBe(true);
+        expect(lines[1].commentOnly).toBe(false);
+    });
+
+    test("lines inside a string have no code and are not comment-only", () => {
+        const lines = scanLines('s = "a\n\' not a comment\nb"');
+        expect(lines.map((l) => [l.code, l.commentOnly])).toEqual([['s = ""', false], ["", false], ["", false]]);
+    });
+
+    test("masked keeps columns: strings and comments become spaces of the same width", () => {
+        const [line] = scanLines(`  If s = "Catch" Then ' Catch`);
+        expect(line.masked).toBe(`  If s =         Then        `);
+        expect(line.masked.length).toBe(line.raw.length);
+        expect(maskedCode(tokenizeLine(`x = "a"`).tokens)).toBe(`x =    `);
+    });
+
+    test("a repeated text returns the same shared result", () => {
+        const text = "Sub Main()\nEnd Sub\n";
+        expect(scanLines(text)).toBe(scanLines(text));
     });
 });

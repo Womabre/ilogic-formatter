@@ -1,4 +1,4 @@
-import { codeOnly, INITIAL_STATE, LineState, tokenizeLine } from "./tokenizer";
+import { scanLines } from "./tokenizer";
 
 export interface FixEdit {
     line: number;
@@ -16,18 +16,14 @@ export interface FixEdit {
 export function optionStrictEdits(text: string): FixEdit[] {
     const missing = new Set(["strict", "explicit"]);
     const edits: FixEdit[] = [];
-    let state: LineState = INITIAL_STATE;
-    const lines = text.split(/\r?\n/);
+    const lines = scanLines(text);
     let firstOption = -1;
     let firstCode = -1;
-    lines.forEach((raw, line) => {
-        const inString = state.openString !== null;
-        const tokenized = tokenizeLine(raw, state);
-        state = tokenized.endState;
-        if (inString) return;
-        const code = codeOnly(tokenized.tokens);
-        if (firstCode < 0 && code.trim() !== "") firstCode = line;
-        const m = /^(\s*Option\s+(Strict|Explicit))(?:[ \t]+(On|Off))?\b/i.exec(code);
+    lines.forEach((l, line) => {
+        if (l.startsInString) return;
+        if (firstCode < 0 && l.code !== "") firstCode = line;
+        // Columns in `masked` are columns in the line
+        const m = /^(\s*Option\s+(Strict|Explicit))(?:[ \t]+(On|Off))?\b/i.exec(l.masked);
         if (!m) return;
         if (firstOption < 0) firstOption = line;
         missing.delete(m[2].toLowerCase());
@@ -44,7 +40,7 @@ export function optionStrictEdits(text: string): FixEdit[] {
         const eol = text.includes("\r\n") ? "\r\n" : "\n";
         const declarations = [...missing].map((option) => `Option ${option === "strict" ? "Strict" : "Explicit"} On`);
         let line = firstOption >= 0 ? firstOption : Math.max(0, firstCode);
-        if (firstOption < 0) while (line > 0 && /^\s*'''/.test(lines[line - 1])) line--;
+        if (firstOption < 0) while (line > 0 && /^\s*'''/.test(lines[line - 1].raw)) line--;
         edits.push({ line, start: 0, end: 0, text: declarations.join(eol) + eol });
     }
     return edits;

@@ -5,6 +5,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-11-21
+
+### Fixed
+
+- Code after the closing quote of a multi-line string was invisible to the convention hints, the outline and the block warnings: `"def" : MsgBox("x")` got no hint, and `"def" : Sub Foo()` was missing from the outline and gave a false "End Sub has no matching Sub". That code is now checked like any other; the line itself is still left exactly as written.
+- The empty-Catch hint on a one-line `Try : s = "catch" : Catch : End Try` pointed at the word inside the string instead of the real `Catch`.
+- Block warnings now always read the rule as written, whatever the formatting options, so they agree with folding, the outline and the hints. Before, they followed `normalizeUnicode` while the others did not, and each edit analysed the document twice.
+
+### Changed
+
+- Internal: every module that reads a rule line by line now shares one scan of it, with the multi-line string state carried from line to line, instead of five separate loops.
+
 ## [1.12.0] - 2026-11-17
 
 ### Added

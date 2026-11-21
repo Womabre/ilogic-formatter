@@ -20,3 +20,4 @@ package-lock.json
 tsconfig.test.json
 .npmignore
 GLOSSARY.md
+docs/**

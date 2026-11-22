@@ -189,6 +189,14 @@ describe("extension", () => {
         ]);
     });
 
+    test("Enter hands the finished line and the new line's indent to the editor", () => {
+        const onType = state.providers.onType[0].provider;
+        const text = "Sub Main()\nif a then\n";
+        const edits = onType.provideOnTypeFormattingEdits(document(text), new Position(2, 0), "\n", { tabSize: 4, insertSpaces: true });
+        expect(apply(text, edits.map((e: { range: Range; newText: string }) => ({ range: e.range, text: e.newText })))).toBe("Sub Main()\n    If a Then\n        ");
+        expect(onType.provideOnTypeFormattingEdits(document(text), new Position(2, 0), "x", {})).toEqual([]);
+    });
+
     test("the empty-Catch quick fix logs the exception, indented with the file's settings", () => {
         const text = "Try\n  x()\nCatch\nEnd Try\n";
         const doc = document(text);

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { lint } from "../src/lint";
-import { optionStrictEdits } from "../src/quickFixes";
+import { logExceptionEdits, optionStrictEdits } from "../src/quickFixes";
+import { applyEdits } from "./applyEdits";
 
 function applyFix(text: string): string {
     const starts = [0];
@@ -48,5 +49,45 @@ describe("Option Strict quick fix", () => {
         expect(applyFix("' Header\nImports System\nOption Explicit On\nx = 1\n"))
             .toBe("' Header\nImports System\nOption Strict On\nOption Explicit On\nx = 1\n");
         expect(applyFix("' only a comment\n")).toBe("Option Strict On\nOption Explicit On\n' only a comment\n");
+    });
+});
+
+describe("Log the exception quick fix", () => {
+    const fix = (text: string, line: number, unit = "    ") => {
+        const edits = logExceptionEdits(text, line, unit);
+        return edits && applyEdits(text, edits);
+    };
+    const logged = (indent: string, unit: string, variable = "ex") => `${indent}${unit}Logger.Error("Failed: " & ${variable}.Message)`;
+
+    test("names the exception and logs it on the next line", () => {
+        expect(fix("Try\nx()\nCatch\nEnd Try\n", 2)).toBe(`Try\nx()\nCatch ex As Exception\n${logged("", "    ")}\nEnd Try\n`);
+    });
+
+    test("keeps a named exception, and indents from the Catch with the unit given", () => {
+        expect(fix("    Try\n        x()\n    Catch e As IOException\n    End Try\n", 2, "\t"))
+            .toBe(`    Try\n        x()\n    Catch e As IOException\n${logged("    ", "\t", "e")}\n    End Try\n`);
+    });
+
+    test("keeps a When filter, also one with a string in it", () => {
+        expect(fix("Try\nx()\nCatch When n > 0\nEnd Try\n", 2)).toBe(`Try\nx()\nCatch ex As Exception When n > 0\n${logged("", "    ")}\nEnd Try\n`);
+        expect(fix('Try\nx()\nCatch err As Exception When err.Message <> "a : b"\nEnd Try\n', 2))
+            .toBe(`Try\nx()\nCatch err As Exception When err.Message <> "a : b"\n${logged("", "    ", "err")}\nEnd Try\n`);
+    });
+
+    test("keeps a trailing comment", () => {
+        expect(fix("Try\nx()\nCatch ' nothing to do\nEnd Try\n", 2)).toBe(`Try\nx()\nCatch ex As Exception ' nothing to do\n${logged("", "    ")}\nEnd Try\n`);
+    });
+
+    test("on the last line of a file without a final line break", () => {
+        expect(fix("Try\nx()\nCatch", 2)).toBe(`Try\nx()\nCatch ex As Exception\n${logged("", "    ")}`);
+    });
+
+    test("in the file's own line ending", () => {
+        expect(fix("Try\r\nx()\r\nCatch\r\nEnd Try\r\n", 2)).toBe(`Try\r\nx()\r\nCatch ex As Exception\r\n${logged("", "    ")}\r\nEnd Try\r\n`);
+    });
+
+    test("no fix for a Catch that shares its line with other statements", () => {
+        expect(logExceptionEdits("Try : x() : Catch : End Try\n", 0, "    ")).toBeNull();
+        expect(logExceptionEdits("Catch : n = 0\n", 0, "    ")).toBeNull();
     });
 });

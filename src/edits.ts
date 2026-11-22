@@ -2,6 +2,14 @@
 // lines that changed, so the cursor, selection and folded regions outside the
 // change stay where they are.
 
+/** A change within one line: replace columns start..end of `line` (0-based) with `text`. */
+export interface FixEdit {
+    line: number;
+    start: number;
+    end: number;
+    text: string;
+}
+
 export interface LineEdit {
     startLine: number;
     startCharacter: number;

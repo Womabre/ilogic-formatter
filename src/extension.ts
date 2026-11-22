@@ -1,13 +1,12 @@
 import * as vscode from "vscode";
 import { dirname } from "path";
 import { CONFIG_FILE, ConfigError, configFor, isRuleFile, resolveSettings, RuleSettings, SettingsLayer } from "./config";
-import { analyzeBlocks, BlockProblem, format, FormatOptions, formatRange } from "./formatter";
+import { analyzeBlocks, BlockProblem, enterEdits, format, FormatOptions, formatRange } from "./formatter";
 import { foldingRanges, outline, OutlineSymbol, SymbolKind } from "./structure";
 import { hoverAt, memberInsertion, memberMarkdown, objectMarkdown, signatureAt, suggestionsFor } from "./completion";
 import { lint, LintRule } from "./lint";
-import { optionStrictEdits } from "./quickFixes";
+import { logExceptionEdits, optionStrictEdits } from "./quickFixes";
 import { minimalLineEdit } from "./edits";
-import { scanLines } from "./tokenizer";
 
 const SYMBOL_KINDS: Record<SymbolKind, vscode.SymbolKind> = {
     class: vscode.SymbolKind.Class,
@@ -139,36 +138,10 @@ export function activate(context: vscode.ExtensionContext) {
     // statement. On by default for iLogic files (configurationDefaults).
     const onTypeProvider: vscode.OnTypeFormattingEditProvider = {
         provideOnTypeFormattingEdits(document, position, ch, options) {
-            const line = position.line;
-            if (ch !== "\n" || line < 1) return [];
-            const opts = getOptions(document, options);
+            if (ch !== "\n") return [];
             const text = document.getText().replace(/\r\n/g, "\n");
-            const lines = text.split("\n");
-            const scanned = scanLines(text);
-            const inString = (n: number) => scanned[n]?.startsInString ?? false;
-            const edits: vscode.TextEdit[] = [];
-
-            const prev = line - 1;
-            if (lines[prev].trim() !== "" && !inString(prev)) {
-                const formatted = formatRange(text, prev, prev, opts).split("\n")[0];
-                if (formatted.trim() !== "" && formatted !== lines[prev]) {
-                    edits.push(vscode.TextEdit.replace(document.lineAt(prev).range, formatted));
-                }
-            }
-
-            if (!inString(line)) {
-                // Probe with a placeholder statement when the new line is empty
-                const current = lines[line] ?? "";
-                const probeLines = [...lines];
-                probeLines[line] = current.trim() === "" ? "x" : current;
-                const probe = formatRange(probeLines.join("\n"), line, line, opts).split("\n")[0];
-                const indent = probe.match(/^\s*/)![0];
-                const oldIndent = current.match(/^\s*/)![0];
-                if (indent !== oldIndent) {
-                    edits.push(vscode.TextEdit.replace(new vscode.Range(line, 0, line, oldIndent.length), indent));
-                }
-            }
-            return edits;
+            return enterEdits(text, position.line, getOptions(document, options))
+                .map((e) => vscode.TextEdit.replace(new vscode.Range(e.line, e.start, e.line, e.end), e.text));
         },
     };
 
@@ -452,17 +425,14 @@ export function activate(context: vscode.ExtensionContext) {
                     actions.push(fix);
                 }
                 if (rule === "empty-catch") {
-                    const line = document.lineAt(diagnostic.range.start.line);
-                    const m = /^(\s*)Catch(?:\s+(\w+)\s+As\s+[\w.]+)?\s*(?:'.*)?$/i.exec(line.text);
-                    if (m) { // only a Catch on its own line; one-line Try...End Try is left to the user
-                        const variable = m[2] ?? "ex";
-                        const opts = getOptions(document, vscode.window.activeTextEditor?.document === document ? vscode.window.activeTextEditor.options : undefined);
-                        const unit = opts.useTabs ? "\t" : " ".repeat(opts.indentSize ?? 4);
+                    const opts = getOptions(document, vscode.window.activeTextEditor?.document === document ? vscode.window.activeTextEditor.options : undefined);
+                    const unit = opts.useTabs ? "\t" : " ".repeat(opts.indentSize ?? 4);
+                    // Null for a Catch that shares its line (one-line Try...End Try): left to the user
+                    const edits = logExceptionEdits(document.getText(), diagnostic.range.start.line, unit);
+                    if (edits) {
                         const fix = new vscode.CodeAction("Log the exception", vscode.CodeActionKind.QuickFix);
                         fix.edit = new vscode.WorkspaceEdit();
-                        if (!m[2]) fix.edit.replace(document.uri, new vscode.Range(line.lineNumber, m[1].length, line.lineNumber, m[1].length + 5), "Catch ex As Exception");
-                        fix.edit.insert(document.uri, new vscode.Position(line.lineNumber + 1, 0),
-                            `${m[1]}${unit}Logger.Error("Failed: " & ${variable}.Message)\n`);
+                        for (const e of edits) fix.edit.replace(document.uri, new vscode.Range(e.line, e.start, e.line, e.end), e.text);
                         fix.diagnostics = [diagnostic];
                         fix.isPreferred = true;
                         actions.push(fix);

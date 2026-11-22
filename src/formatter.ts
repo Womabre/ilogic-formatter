@@ -1,3 +1,4 @@
+import { FixEdit } from "./edits";
 import { LEGACY_SPELLINGS, VB_KEYWORDS } from "./keywords";
 import { codeOnly, INITIAL_STATE, isDoubleQuote, isSingleQuote, LineState, ScannedLine, scanLines, Token, tokenizeLine } from "./tokenizer";
 
@@ -138,6 +139,41 @@ export function formatRange(text: string, startLine: number, endLine: number, op
         result.push("");
     }
     return result.join("\n");
+}
+
+/**
+ * What pressing Enter changes, with the cursor now at the start of line `line`
+ * (0-based, "\n" line endings): the line just finished gets its final indent
+ * and casing, and the new line gets the indent the formatter would give the
+ * next statement there. Lines inside a multi-line string are left alone, and
+ * nothing changes for line 0.
+ */
+export function enterEdits(text: string, line: number, options: FormatOptions = {}): FixEdit[] {
+    if (line < 1) return [];
+    const lines = text.split("\n");
+    const scanned = scanLines(text);
+    const inString = (n: number) => scanned[n]?.startsInString ?? false;
+    const edits: FixEdit[] = [];
+
+    const prev = line - 1;
+    if (lines[prev].trim() !== "" && !inString(prev)) {
+        const formatted = formatRange(text, prev, prev, options).split("\n")[0];
+        if (formatted.trim() !== "" && formatted !== lines[prev]) {
+            edits.push({ line: prev, start: 0, end: lines[prev].length, text: formatted });
+        }
+    }
+
+    if (!inString(line)) {
+        // Probe with a placeholder statement when the new line is empty
+        const current = lines[line] ?? "";
+        const probeLines = [...lines];
+        probeLines[line] = current.trim() === "" ? "x" : current;
+        const probe = formatRange(probeLines.join("\n"), line, line, options).split("\n")[0];
+        const indent = probe.match(/^\s*/)![0];
+        const oldIndent = current.match(/^\s*/)![0];
+        if (indent !== oldIndent) edits.push({ line, start: 0, end: oldIndent.length, text: indent });
+    }
+    return edits;
 }
 
 /** A block structure problem: a closer without an opener, or a block that never closes. */

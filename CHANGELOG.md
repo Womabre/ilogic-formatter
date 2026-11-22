@@ -11,12 +11,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - Code after the closing quote of a multi-line string was invisible to the convention hints, the outline and the block warnings: `"def" : MsgBox("x")` got no hint, and `"def" : Sub Foo()` was missing from the outline and gave a false "End Sub has no matching Sub". That code is now checked like any other; the line itself is still left exactly as written.
 - The empty-Catch hint on a one-line `Try : s = "catch" : Catch : End Try` pointed at the word inside the string instead of the real `Catch`.
+- The "Log the exception" quick fix now also works for a `Catch ... When` filter (it was silently not offered), on a Catch in the last line of a file without a final line break (the Logger line could land on the Catch line), and adds its line in the file's own line ending.
 - Block warnings now always read the rule as written, whatever the formatting options, so they agree with folding, the outline and the hints. Before, they followed `normalizeUnicode` while the others did not, and each edit analysed the document twice.
 
 ### Changed
 
 - Internal: every module that reads a rule line by line now shares one scan of it, with the multi-line string state carried from line to line, instead of five separate loops.
 - Internal: block analysis records what each section of a block is (Else, Case, Catch, Finally) and whether it holds code; the empty-Catch hint reads that instead of re-parsing the statements.
+- Internal: what Enter changes and what "Log the exception" inserts are decided outside the VS Code wiring, so both are tested on their own.
 - Internal: the editor and `ilogic-format` hand their settings sources (editor settings, `.ilogicformat.json`, command-line flags) to one resolver that applies the same rule for both: the most specific source wins and disabled hints add up.
 
 ## [1.12.0] - 2026-11-17

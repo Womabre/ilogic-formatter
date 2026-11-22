@@ -41,6 +41,9 @@ jobs:
             exit 1
           fi
           echo "vsix=ilogic-formatter-$version.vsix" >> "$GITHUB_OUTPUT"
+      # Needs no dependencies, so a stale changelog stops the release before the install
+      - name: Changelog is ready for this release
+        run: bun scripts/check-release.ts --tag "$GITHUB_REF_NAME"
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run compile

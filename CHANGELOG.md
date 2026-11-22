@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Repository only (not in the extension): the release workflow refuses a tag whose changelog is not ready, before anything is built: the newest version heading must be `package.json`'s version and dated the day of the release, with nothing left under Unreleased (`bun run check-release`). 1.12.1 was tagged with the date of the day before.
+- Repository only (not in the extension): `bun run diff-refs <ref>` compares what two commits do with the same 4000 generated rules and shows the smallest rules where they differ. The property tests now also run on rules with code after the closing quote of a multi-line string, the shape that hid a regression in the 1.12.1 refactor until review.
+
 ## [1.12.1] - 2026-11-22
 
 ### Fixed

@@ -200,7 +200,9 @@
     "package": "tsc -p ./ && vsce package --out ilogic-formatter.vsix",
     "grammar": "bun scripts/build-grammar.ts",
     "format": "bun src/cli.ts",
-    "typecheck": "tsc -p ./ --noEmit && tsc -p tsconfig.test.json"
+    "typecheck": "tsc -p ./ --noEmit && tsc -p tsconfig.test.json",
+    "check-release": "bun scripts/check-release.ts",
+    "diff-refs": "bun scripts/diff-refs.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",

@@ -13,12 +13,14 @@ The extension is published as `Womabre.ilogic-formatter` in three places:
 
 ## Every release
 
-1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section, and set the same version in `package.json`.
+1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section, and set the same version in `package.json`. The date is the day you tag, not the day the version was bumped.
 2. Check locally:
 
    ```bash
-   bun run typecheck && bun run compile && bun test && bunx vsce package
+   bun run check-release && bun run typecheck && bun run compile && bun test && bunx vsce package
    ```
+
+   `check-release` refuses a changelog whose newest version is not `package.json`'s, is not dated today (Europe/Amsterdam), or still has entries under Unreleased. The release workflow runs the same check against the tag before it builds anything.
 
 3. Commit and push, then tag and push the tag:
 
@@ -31,6 +33,14 @@ The extension is published as `Womabre.ilogic-formatter` in three places:
    The release workflow (`.github/workflows/release.yml`) runs two jobs. `build` refuses a tag that does not match `package.json`, type-checks, runs the tests and packages the `.vsix`. `publish` takes that `.vsix`, creates a GitHub release with it attached, and publishes it to Open VSX and then the VS Code Marketplace.
 
    Only `publish` holds the publishing rights, and it runs no code from the repository: nothing that runs during install, build or test can reach them.
+
+## Checking that a change left behaviour alone
+
+```bash
+bun run diff-refs main
+```
+
+runs `src/` as it is on `main` and as it is in the working tree over 4000 generated rules, and reports every surface whose result differs (formatted output, block warnings and spans, convention hints, folding, the outline, the Option Strict fix), each with the smallest rules that show it. A second ref compares two commits instead. For a refactor the answer must be "No difference found". For an intended change, read the examples (`--examples N` shows more): every one should be a difference you meant, and one that is not is a regression.
 
 ## How trusted publishing is set up
 
